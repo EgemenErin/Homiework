@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Field, FormError, inputClass } from "@/components/ui/field";
 import type { ActionState } from "@/lib/actions";
+import { triggerHaptic } from "@/lib/haptics";
 
 export function AddSuggestionForm({ groupId }: { groupId: string }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -106,6 +107,7 @@ export function SuggestionRow({
   function handleVote() {
     const nextVoted = !optimistic.voted;
     const nextVotes = optimistic.votes + (nextVoted ? 1 : -1);
+    triggerHaptic(nextVoted ? "selection" : "light");
     setError(null);
     startTransition(async () => {
       setOptimistic({ votes: nextVotes, voted: nextVoted });
@@ -115,6 +117,7 @@ export function SuggestionRow({
   }
 
   function handleDelete() {
+    triggerHaptic("warning");
     setError(null);
     startTransition(async () => {
       const res = await deleteSuggestion(id);
@@ -131,13 +134,18 @@ export function SuggestionRow({
           disabled={isPending}
           aria-pressed={optimistic.voted}
           aria-label={`Upvote "${title}" (${optimistic.votes} ${optimistic.votes === 1 ? "vote" : "votes"})`}
-          className={`inline-flex min-h-12 min-w-12 shrink-0 flex-col items-center justify-center rounded-md border-2 px-2 py-1 text-sm font-semibold transition-colors ${
+          className={`inline-flex min-h-12 min-w-12 shrink-0 flex-col items-center justify-center rounded-md border-2 px-2 py-1 text-sm font-semibold transition-all duration-150 active:scale-95 ${
             optimistic.voted
-              ? "border-ink bg-highlight text-ink"
+              ? "animate-chip-pop border-ink bg-highlight text-ink"
               : "border-slate-300 bg-paper text-pencil hover:border-ink hover:text-ink"
           }`}
         >
-          <ChevronUp aria-hidden className="size-4 stroke-[2.5]" />
+          <ChevronUp
+            aria-hidden
+            className={`size-4 stroke-[2.5] transition-transform duration-150 ${
+              optimistic.voted ? "-translate-y-0.5" : ""
+            }`}
+          />
           <span>{optimistic.votes}</span>
         </button>
 

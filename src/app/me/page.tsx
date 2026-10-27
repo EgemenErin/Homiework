@@ -2,11 +2,19 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { signOut } from "@/app/actions/auth";
-import { ProfileStepForm } from "@/app/onboarding/onboarding-forms";
+import {
+  ContactGroupFinder,
+  ProfileStepForm,
+} from "@/app/onboarding/onboarding-forms";
 import { SimpleHeader, TabBar } from "@/components/group-nav";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { safeNext } from "@/lib/actions";
-import { getMyGroups, getMyProfile, requireUser } from "@/lib/data";
+import {
+  getMyContactMatches,
+  getMyGroups,
+  getMyProfile,
+  requireUser,
+} from "@/lib/data";
 import { LeaveGroupControl, PushSettings } from "./me-client";
 
 export const metadata: Metadata = {
@@ -18,10 +26,11 @@ async function MeContent({
 }: {
   searchParams: Promise<{ from?: string }>;
 }) {
-  const [user, profile, groups, query] = await Promise.all([
+  const [user, profile, groups, contactData, query] = await Promise.all([
     requireUser("/me"),
     getMyProfile(),
     getMyGroups(),
+    getMyContactMatches(),
     searchParams,
   ]);
 
@@ -36,17 +45,44 @@ async function MeContent({
   return (
     <div className="flex min-h-dvh flex-col bg-desk text-ink">
       <SimpleHeader backHref={from} backLabel="Back" />
-      {activeGroupId ? <TabBar groupId={activeGroupId} /> : null}
 
-      <main className="mx-auto w-full max-w-[34rem] flex-1 space-y-12 px-4 pt-8 pb-16">
+      <main className="mx-auto w-full max-w-[34rem] flex-1 space-y-12 px-4 pt-6 pb-24">
         <section aria-labelledby="profile-heading" className="space-y-4">
           <div>
             <h1 id="profile-heading" className="font-serif text-2xl text-ink">
               Your profile
             </h1>
-            <p className="text-sm text-pencil">{user.email}</p>
+            <p className="text-sm text-pencil">
+              {profile?.phone ? `${profile.phone} · ${user.email}` : user.email}
+            </p>
           </div>
-          <ProfileStepForm profile={profile} submitLabel="Save profile" />
+          <ProfileStepForm
+            profile={profile}
+            includeSurvey
+            submitLabel="Save profile"
+          />
+        </section>
+
+        <section
+          aria-labelledby="contacts-me-heading"
+          className="space-y-4 border-t border-rule pt-8"
+        >
+          <div className="space-y-1">
+            <h2 id="contacts-me-heading" className="font-serif text-2xl text-ink">
+              Find groups from your contacts{" "}
+              <span className="font-sans text-base font-normal text-pencil">
+                (optional)
+              </span>
+            </h2>
+            <p className="text-base text-pencil">
+              See if friends from your contacts are already running a study group.
+            </p>
+          </div>
+          <ContactGroupFinder
+            initialMatches={contactData.matches}
+            initialContactsCount={contactData.contactsCount}
+            initialPhone={profile?.phone ?? null}
+          />
         </section>
 
         <section
@@ -106,6 +142,8 @@ async function MeContent({
           </form>
         </section>
       </main>
+
+      {activeGroupId ? <TabBar groupId={activeGroupId} /> : null}
     </div>
   );
 }

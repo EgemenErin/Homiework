@@ -70,13 +70,17 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${atkinson.variable} ${youngSerif.variable}`}>
-      <body className="min-h-dvh">
-        {children}
+      <body className="min-h-dvh bg-desk-deep text-ink">
+        <div className="mx-auto min-h-dvh w-full max-w-[430px] bg-desk relative flex flex-col md:shadow-2xl md:border-x md:border-rule/60">
+          {children}
+        </div>
         <ServiceWorker />
       </body>
     </html>

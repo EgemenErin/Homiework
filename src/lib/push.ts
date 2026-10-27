@@ -1,12 +1,14 @@
 import "server-only";
 import webpush from "web-push";
 import { createAdminClient } from "@/lib/supabase/server";
+import { isLocalDemoMode } from "@/lib/supabase/local-store";
 import { formatMeetup } from "@/lib/dates";
 
 export type PushPayload = { title: string; body: string; url: string; tag?: string };
 
 let configured: boolean | null = null;
 function configure() {
+  if (isLocalDemoMode()) return false;
   if (configured !== null) return configured;
   const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const priv = process.env.VAPID_PRIVATE_KEY;

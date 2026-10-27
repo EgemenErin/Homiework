@@ -11,7 +11,7 @@ import { computeMemberStats } from "@/lib/streaks";
 export const DEMO_COOKIE = "hw_demo_uid";
 
 type LocalDb = {
-  users: { id: string; email: string }[];
+  users: { id: string; email: string; phone?: string | null }[];
   profiles: Tables<"profiles">[];
   groups: Tables<"groups">[];
   group_members: Tables<"group_members">[];
@@ -24,6 +24,8 @@ type LocalDb = {
   suggestion_votes: Tables<"suggestion_votes">[];
   push_subscriptions: Tables<"push_subscriptions">[];
   notifications_sent: Tables<"notifications_sent">[];
+  user_contacts: Tables<"user_contacts">[];
+  auth_otp_codes: Tables<"auth_otp_codes">[];
 };
 
 const DB_PATH = path.join(process.cwd(), ".local-db.json");
@@ -49,18 +51,83 @@ function seedDb(): LocalDb {
 
   return {
     users: [
-      { id: uEge, email: "ege@homiework.test" },
-      { id: uMert, email: "mert@homiework.test" },
-      { id: uKerem, email: "kerem@homiework.test" },
-      { id: uAylin, email: "aylin@homiework.test" },
-      { id: uSelin, email: "selin@homiework.test" },
+      { id: uEge, email: "ege@homiework.test", phone: "+15550101001" },
+      { id: uMert, email: "mert@homiework.test", phone: "+15550101002" },
+      { id: uKerem, email: "kerem@homiework.test", phone: "+15550101003" },
+      { id: uAylin, email: "aylin@homiework.test", phone: "+15550101004" },
+      { id: uSelin, email: "selin@homiework.test", phone: "+15550101005" },
     ],
     profiles: [
-      { id: uEge, display_name: "Ege", avatar_color: "ink", created_at: iso(-30 * day) },
-      { id: uMert, display_name: "Mert", avatar_color: "red", created_at: iso(-29 * day) },
-      { id: uKerem, display_name: "Kerem", avatar_color: "green", created_at: iso(-29 * day) },
-      { id: uAylin, display_name: "Aylin", avatar_color: "plum", created_at: iso(-28 * day) },
-      { id: uSelin, display_name: "Selin", avatar_color: "ochre", created_at: iso(-28 * day) },
+      {
+        id: uEge,
+        display_name: "Ege",
+        avatar_color: "ink",
+        phone: "+15550101001",
+        email: "ege@homiework.test",
+        topics: ["history", "economics"],
+        study_pace: "mix",
+        availability: "weeknights",
+        background: "Software engineer",
+        referral_source: "friend",
+        survey_completed_at: iso(-30 * day),
+        created_at: iso(-30 * day),
+      },
+      {
+        id: uMert,
+        display_name: "Mert",
+        avatar_color: "red",
+        phone: "+15550101002",
+        email: "mert@homiework.test",
+        topics: ["history", "politics"],
+        study_pace: "deep",
+        availability: "weeknights",
+        background: "Architecture grad",
+        referral_source: "friend",
+        survey_completed_at: iso(-29 * day),
+        created_at: iso(-29 * day),
+      },
+      {
+        id: uKerem,
+        display_name: "Kerem",
+        avatar_color: "green",
+        phone: "+15550101003",
+        email: "kerem@homiework.test",
+        topics: ["economics", "tech"],
+        study_pace: "short",
+        availability: "weeknights",
+        background: "Product analyst",
+        referral_source: "group_chat",
+        survey_completed_at: iso(-29 * day),
+        created_at: iso(-29 * day),
+      },
+      {
+        id: uAylin,
+        display_name: "Aylin",
+        avatar_color: "plum",
+        phone: "+15550101004",
+        email: "aylin@homiework.test",
+        topics: ["science", "psychology"],
+        study_pace: "multimedia",
+        availability: "weeknights",
+        background: "Med student",
+        referral_source: "group_chat",
+        survey_completed_at: iso(-28 * day),
+        created_at: iso(-28 * day),
+      },
+      {
+        id: uSelin,
+        display_name: "Selin",
+        avatar_color: "ochre",
+        phone: "+15550101005",
+        email: "selin@homiework.test",
+        topics: ["art", "psychology"],
+        study_pace: "mix",
+        availability: "weekend_afternoon",
+        background: "Graphic designer",
+        referral_source: "friend",
+        survey_completed_at: iso(-28 * day),
+        created_at: iso(-28 * day),
+      },
     ],
     groups: [
       {
@@ -221,13 +288,18 @@ function seedDb(): LocalDb {
     ],
     push_subscriptions: [],
     notifications_sent: [],
+    user_contacts: [],
+    auth_otp_codes: [],
   };
 }
 
 function readDb(): LocalDb {
   try {
     if (fs.existsSync(DB_PATH)) {
-      return JSON.parse(fs.readFileSync(DB_PATH, "utf8")) as LocalDb;
+      const parsed = JSON.parse(fs.readFileSync(DB_PATH, "utf8")) as LocalDb;
+      parsed.user_contacts ??= [];
+      parsed.auth_otp_codes ??= [];
+      return parsed;
     }
   } catch {
     // recreate below
@@ -369,6 +441,7 @@ export async function createLocalDemoClient(asAdmin = false) {
         return Boolean(sug && isMember(db, sug.group_id));
       }
       case "push_subscriptions":
+      case "user_contacts":
         return row.user_id === currentUid;
       default:
         return false;
@@ -408,11 +481,14 @@ export async function createLocalDemoClient(asAdmin = false) {
           const record: Record<string, unknown> = {
             ...(table === "suggestions" ||
             table === "resources" ||
-            table === "push_subscriptions"
+            table === "push_subscriptions" ||
+            table === "user_contacts"
               ? { id: (item.id as string) ?? randomUUID() }
               : {}),
             ...(table === "suggestions" ||
             table === "push_subscriptions" ||
+            table === "user_contacts" ||
+            table === "auth_otp_codes" ||
             table === "profiles"
               ? { created_at: new Date().toISOString() }
               : {}),
@@ -438,7 +514,9 @@ export async function createLocalDemoClient(asAdmin = false) {
             ? ["round_id", "user_id"]
             : table === "suggestion_votes"
               ? ["suggestion_id", "user_id"]
-              : ["id"];
+              : table === "auth_otp_codes"
+                ? ["target"]
+                : ["id"];
         const existingIdx = collection.findIndex((r) =>
           keyCols.every((k) => r[k] === item[k]),
         );
@@ -585,7 +663,7 @@ export async function createLocalDemoClient(asAdmin = false) {
         const u = currentUid ? db.users.find((x) => x.id === currentUid) : null;
         return {
           data: {
-            user: u ? { id: u.id, email: u.email } : null,
+            user: u ? { id: u.id, email: u.email, phone: u.phone ?? null } : null,
           },
           error: null,
         };
@@ -594,21 +672,60 @@ export async function createLocalDemoClient(asAdmin = false) {
         const db = readDb();
         const u = currentUid ? db.users.find((x) => x.id === currentUid) : null;
         return {
-          data: u ? { claims: { sub: u.id, email: u.email } } : null,
+          data: u ? { claims: { sub: u.id, email: u.email, phone: u.phone ?? null } } : null,
           error: null,
         };
       },
-      async signInWithOtp({ email }: { email: string }) {
+      async signInWithOtp({ email, phone }: { email?: string; phone?: string }) {
         const db = readDb();
-        const clean = email.trim().toLowerCase();
+        if (phone) {
+          const cleanPhone = phone.trim();
+          const digits = cleanPhone.replace(/\D/g, "");
+          let u = db.users.find(
+            (x) => x.phone && x.phone.replace(/\D/g, "") === digits,
+          );
+          if (!u) {
+            u = {
+              id: randomUUID(),
+              email: `${digits}@phone.homiework.local`,
+              phone: cleanPhone,
+            };
+            db.users.push(u);
+            db.profiles.push({
+              id: u.id,
+              display_name: "",
+              avatar_color: "ink",
+              phone: cleanPhone,
+              email: u.email,
+              topics: [],
+              study_pace: null,
+              availability: null,
+              background: "",
+              referral_source: null,
+              survey_completed_at: null,
+              created_at: new Date().toISOString(),
+            });
+            writeDb(db);
+          }
+          return { data: {}, error: null };
+        }
+        const clean = (email ?? "").trim().toLowerCase();
         let u = db.users.find((x) => x.email.toLowerCase() === clean);
-        if (!u) {
-          u = { id: randomUUID(), email: clean };
+        if (!u && clean) {
+          u = { id: randomUUID(), email: clean, phone: null };
           db.users.push(u);
           db.profiles.push({
             id: u.id,
             display_name: "",
             avatar_color: "ink",
+            phone: null,
+            email: clean,
+            topics: [],
+            study_pace: null,
+            availability: null,
+            background: "",
+            referral_source: null,
+            survey_completed_at: null,
             created_at: new Date().toISOString(),
           });
           writeDb(db);
@@ -617,23 +734,64 @@ export async function createLocalDemoClient(asAdmin = false) {
       },
       async verifyOtp(params: {
         email?: string;
+        phone?: string;
         token?: string;
         token_hash?: string;
         type: string;
       }) {
         const db = readDb();
-        const email = (params.email ?? params.token_hash ?? "").trim().toLowerCase();
-        let u = db.users.find((x) => x.email.toLowerCase() === email);
-        if (!u && email) {
-          u = { id: randomUUID(), email };
-          db.users.push(u);
-          db.profiles.push({
-            id: u.id,
-            display_name: "",
-            avatar_color: "ink",
-            created_at: new Date().toISOString(),
-          });
-          writeDb(db);
+        let u = null;
+        if (params.phone) {
+          const cleanPhone = params.phone.trim();
+          const digits = cleanPhone.replace(/\D/g, "");
+          u = db.users.find(
+            (x) => x.phone && x.phone.replace(/\D/g, "") === digits,
+          );
+          if (!u && digits) {
+            u = {
+              id: randomUUID(),
+              email: `${digits}@phone.homiework.local`,
+              phone: cleanPhone,
+            };
+            db.users.push(u);
+            db.profiles.push({
+              id: u.id,
+              display_name: "",
+              avatar_color: "ink",
+              phone: cleanPhone,
+              email: u.email,
+              topics: [],
+              study_pace: null,
+              availability: null,
+              background: "",
+              referral_source: null,
+              survey_completed_at: null,
+              created_at: new Date().toISOString(),
+            });
+            writeDb(db);
+          }
+        } else {
+          const email = (params.email ?? params.token_hash ?? "").trim().toLowerCase();
+          u = db.users.find((x) => x.email.toLowerCase() === email);
+          if (!u && email) {
+            u = { id: randomUUID(), email, phone: null };
+            db.users.push(u);
+            db.profiles.push({
+              id: u.id,
+              display_name: "",
+              avatar_color: "ink",
+              phone: null,
+              email,
+              topics: [],
+              study_pace: null,
+              availability: null,
+              background: "",
+              referral_source: null,
+              survey_completed_at: null,
+              created_at: new Date().toISOString(),
+            });
+            writeDb(db);
+          }
         }
         if (!u) {
           return {
@@ -647,9 +805,20 @@ export async function createLocalDemoClient(asAdmin = false) {
           sameSite: "lax",
         });
         return {
-          data: { user: { id: u.id, email: u.email }, session: {} },
+          data: { user: { id: u.id, email: u.email, phone: u.phone ?? null }, session: {} },
           error: null,
         };
+      },
+      async exchangeCodeForSession(code: string) {
+        const db = readDb();
+        const u = db.users.find((x) => x.id === code || x.email === code) ?? db.users[0];
+        if (!u) return { data: { user: null, session: null }, error: { message: "Invalid code" } };
+        cookieStore.set(DEMO_COOKIE, u.id, {
+          path: "/",
+          httpOnly: true,
+          sameSite: "lax",
+        });
+        return { data: { user: { id: u.id, email: u.email }, session: {} }, error: null };
       },
       async signOut() {
         cookieStore.delete(DEMO_COOKIE);
@@ -961,6 +1130,61 @@ export async function createLocalDemoClient(asAdmin = false) {
           });
           return { user_id: m.user_id, ...stats };
         });
+        return { data: out, error: null };
+      }
+
+      if (fn === "find_groups_by_contacts") {
+        const emails = new Set(
+          ((args.p_emails as string[]) ?? [])
+            .map((e) => e.trim().toLowerCase())
+            .filter(Boolean),
+        );
+        const phones = new Set(
+          ((args.p_phones as string[]) ?? [])
+            .map((p) => p.replace(/\D/g, ""))
+            .filter((d) => d.length >= 7)
+            .map((d) => d.slice(-10)),
+        );
+        const matchedProfiles = db.profiles.filter((p) => {
+          if (p.id === currentUid) return false;
+          const emailMatch = Boolean(p.email && emails.has(p.email.trim().toLowerCase()));
+          const digits = (p.phone ?? "").replace(/\D/g, "");
+          const phoneMatch = digits.length >= 7 && phones.has(digits.slice(-10));
+          return emailMatch || phoneMatch;
+        });
+        const matchedById = new Map(
+          matchedProfiles.map((p) => [
+            p.id,
+            p.display_name.trim() || (p.email ? p.email.split("@")[0] : "A friend"),
+          ]),
+        );
+        const groupHits = new Map<string, Set<string>>();
+        for (const gm of db.group_members) {
+          const friendName = matchedById.get(gm.user_id);
+          if (!friendName) continue;
+          const set = groupHits.get(gm.group_id) ?? new Set<string>();
+          set.add(friendName);
+          groupHits.set(gm.group_id, set);
+        }
+        const out = [];
+        for (const [groupId, friendSet] of groupHits.entries()) {
+          const g = db.groups.find((x) => x.id === groupId);
+          if (!g) continue;
+          const members = db.group_members.filter((m) => m.group_id === g.id);
+          out.push({
+            group_id: g.id,
+            group_name: g.name,
+            invite_code: g.invite_code,
+            meet_weekday: g.meet_weekday,
+            meet_time: g.meet_time,
+            timezone: g.timezone,
+            member_count: members.length,
+            matched_friends: Array.from(friendSet).toSorted(),
+            already_member: Boolean(
+              currentUid && members.some((m) => m.user_id === currentUid),
+            ),
+          });
+        }
         return { data: out, error: null };
       }
 

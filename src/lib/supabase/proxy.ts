@@ -38,6 +38,18 @@ export async function updateSession(request: NextRequest) {
     // Nothing between client creation and this call: it refreshes the token.
     const { data } = await supabase.auth.getClaims();
     signedIn = Boolean(data?.claims?.sub);
+
+    const authCode = request.nextUrl.searchParams.get("code");
+    if (!signedIn && authCode) {
+      const { data: exchanged, error } = await supabase.auth.exchangeCodeForSession(authCode);
+      if (!error && exchanged.session) {
+        const cleanUrl = request.nextUrl.clone();
+        cleanUrl.searchParams.delete("code");
+        const redirect = NextResponse.redirect(cleanUrl);
+        response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+        return redirect;
+      }
+    }
   }
   const { pathname, search } = request.nextUrl;
 

@@ -4,6 +4,7 @@ import { useOptimistic, useState, useTransition } from "react";
 import { passTurn, setCheckin, setRsvp } from "@/app/actions/week";
 import { Button } from "@/components/ui/button";
 import { FormError } from "@/components/ui/field";
+import { triggerHaptic } from "@/lib/haptics";
 
 export function CheckinButton({
   roundId,
@@ -18,6 +19,7 @@ export function CheckinButton({
 
   function handleToggle() {
     const next = !optimisticDone;
+    triggerHaptic(next ? "success" : "light");
     setError(null);
     startTransition(async () => {
       setOptimisticDone(next);
@@ -29,7 +31,7 @@ export function CheckinButton({
   return (
     <div className="space-y-2">
       {optimisticDone ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border-2 border-ink bg-highlight-soft px-4 py-3">
+        <div className="animate-reveal flex flex-wrap items-center justify-between gap-3 rounded-md border-2 border-ink bg-highlight-soft px-4 py-3">
           <div className="flex items-center gap-2.5">
             <svg
               aria-hidden
@@ -94,6 +96,7 @@ export function RsvpControl({
   const [error, setError] = useState<string | null>(null);
 
   function choose(next: "going" | "maybe" | "out") {
+    triggerHaptic("selection");
     setError(null);
     startTransition(async () => {
       setOptimisticStatus(next);
@@ -118,9 +121,9 @@ export function RsvpControl({
               aria-pressed={active}
               disabled={isPending}
               onClick={() => choose(opt.value)}
-              className={`min-h-11 min-w-22 rounded-[4px] px-4 text-base font-semibold transition-colors ${
+              className={`min-h-11 min-w-22 rounded-[4px] px-4 text-base font-semibold transition-all duration-150 active:scale-95 ${
                 active
-                  ? "bg-paper text-ink shadow-xs"
+                  ? "animate-chip-pop bg-paper text-ink shadow-xs"
                   : "text-pencil hover:text-ink"
               }`}
             >

@@ -6,6 +6,7 @@ export function Field({
   label,
   htmlFor,
   hint,
+  hintPosition = "below",
   error,
   optional,
   children,
@@ -13,6 +14,7 @@ export function Field({
   label: string;
   htmlFor: string;
   hint?: ReactNode;
+  hintPosition?: "above" | "below";
   error?: string;
   optional?: boolean;
   children: ReactNode;
@@ -23,13 +25,18 @@ export function Field({
         {label}
         {optional ? <span className="font-normal text-pencil"> (optional)</span> : null}
       </label>
+      {hint && hintPosition === "above" ? (
+        <p id={`${htmlFor}-hint`} className="text-sm text-pencil">
+          {hint}
+        </p>
+      ) : null}
       {children}
       {error ? (
         <p id={`${htmlFor}-error`} className="flex items-start gap-1 text-sm text-red" role="alert">
           <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
           {error}
         </p>
-      ) : hint ? (
+      ) : hint && hintPosition === "below" ? (
         <p id={`${htmlFor}-hint`} className="text-sm text-pencil">
           {hint}
         </p>

@@ -14,18 +14,104 @@ export type Database = {
           id: string;
           display_name: string;
           avatar_color: "ink" | "red" | "green" | "plum" | "ochre" | "teal";
+          phone: string | null;
+          email: string | null;
+          topics: string[];
+          study_pace: "short" | "deep" | "multimedia" | "mix" | null;
+          availability: "weeknights" | "weekend_morning" | "weekend_afternoon" | "flexible" | null;
+          background: string;
+          referral_source: "friend" | "group_chat" | "campus" | "social" | "other" | null;
+          survey_completed_at: string | null;
           created_at: string;
         };
         Insert: {
           id: string;
           display_name?: string;
           avatar_color?: "ink" | "red" | "green" | "plum" | "ochre" | "teal";
+          phone?: string | null;
+          email?: string | null;
+          topics?: string[];
+          study_pace?: "short" | "deep" | "multimedia" | "mix" | null;
+          availability?: "weeknights" | "weekend_morning" | "weekend_afternoon" | "flexible" | null;
+          background?: string;
+          referral_source?: "friend" | "group_chat" | "campus" | "social" | "other" | null;
+          survey_completed_at?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           display_name?: string;
           avatar_color?: "ink" | "red" | "green" | "plum" | "ochre" | "teal";
+          phone?: string | null;
+          email?: string | null;
+          topics?: string[];
+          study_pace?: "short" | "deep" | "multimedia" | "mix" | null;
+          availability?: "weeknights" | "weekend_morning" | "weekend_afternoon" | "flexible" | null;
+          background?: string;
+          referral_source?: "friend" | "group_chat" | "campus" | "social" | "other" | null;
+          survey_completed_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      user_contacts: {
+        Row: {
+          id: string;
+          user_id: string;
+          contact_name: string;
+          contact_email: string | null;
+          contact_phone: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          contact_name?: string;
+          contact_email?: string | null;
+          contact_phone?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          contact_name?: string;
+          contact_email?: string | null;
+          contact_phone?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "user_contacts_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      auth_otp_codes: {
+        Row: {
+          target: string;
+          channel: "sms" | "email";
+          code: string;
+          message: string;
+          expires_at: string;
+          created_at: string;
+        };
+        Insert: {
+          target: string;
+          channel: "sms" | "email";
+          code: string;
+          message: string;
+          expires_at: string;
+          created_at?: string;
+        };
+        Update: {
+          target?: string;
+          channel?: "sms" | "email";
+          code?: string;
+          message?: string;
+          expires_at?: string;
           created_at?: string;
         };
         Relationships: [];
@@ -417,6 +503,20 @@ export type Database = {
       };
       regenerate_invite: { Args: { p_group: string }; Returns: string };
       leave_group: { Args: { p_group: string }; Returns: undefined };
+      find_groups_by_contacts: {
+        Args: { p_emails?: string[]; p_phones?: string[] };
+        Returns: {
+          group_id: string;
+          group_name: string;
+          invite_code: string;
+          meet_weekday: number;
+          meet_time: string;
+          timezone: string;
+          member_count: number;
+          matched_friends: string[];
+          already_member: boolean;
+        }[];
+      };
       member_stats: {
         Args: { p_group: string };
         Returns: {

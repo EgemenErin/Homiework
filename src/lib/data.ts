@@ -2,9 +2,11 @@ import "server-only";
 import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Tables } from "@/lib/database.types";
+import type { Database, Tables } from "@/lib/database.types";
 
 export type Profile = Pick<Tables<"profiles">, "id" | "display_name" | "avatar_color">;
+export type FullProfile = Tables<"profiles">;
+export type ContactGroupMatch = Database["public"]["Functions"]["find_groups_by_contacts"]["Returns"][number];
 export type Member = Pick<Tables<"group_members">, "user_id" | "role" | "rotation_position" | "joined_at"> & {
   profile: Profile;
 };
@@ -26,16 +28,49 @@ export async function requireUser(next = "/home") {
   return user;
 }
 
-export const getMyProfile = cache(async () => {
+export const getMyProfile = cache(async (): Promise<FullProfile | null> => {
   const user = await getUser();
   if (!user) return null;
   const supabase = await createClient();
   const { data } = await supabase
     .from("profiles")
-    .select("id, display_name, avatar_color")
+    .select("*")
     .eq("id", user.id)
     .single();
   return data;
+});
+
+export const getMyContactMatches = cache(async (): Promise<{
+  contactsCount: number;
+  matches: ContactGroupMatch[];
+}> => {
+  const user = await getUser();
+  if (!user) return { contactsCount: 0, matches: [] };
+  const supabase = await createClient();
+  const { data: contacts } = await supabase
+    .from("user_contacts")
+    .select("contact_email, contact_phone")
+    .eq("user_id", user.id);
+
+  const list = contacts ?? [];
+  if (list.length === 0) return { contactsCount: 0, matches: [] };
+
+  const emails = list
+    .map((c) => c.contact_email)
+    .filter((e): e is string => Boolean(e));
+  const phones = list
+    .map((c) => c.contact_phone)
+    .filter((p): p is string => Boolean(p));
+
+  const { data: matches } = await supabase.rpc("find_groups_by_contacts", {
+    p_emails: emails,
+    p_phones: phones,
+  });
+
+  return {
+    contactsCount: list.length,
+    matches: matches ?? [],
+  };
 });
 
 export const getMyGroups = cache(async () => {

@@ -19,6 +19,12 @@
       "skillPath": "graphify/SKILL.md",
       "computedHash": "b85bb9c2d3510f831699c8f3f9f2433c5e2d9545b37000f8221350e6f7683dbf"
     },
+    "mobile-onboarding": {
+      "source": "onfire7777/universal-ai-skills-library",
+      "sourceType": "github",
+      "skillPath": "skills/mobile-onboarding/SKILL.md",
+      "computedHash": "7d3adf81765971f835a2c1388de544213cc965337941194862c3d452f0ad03a9"
+    },
     "ui-design": {
       "source": "jordisantamaria/claude-ui-design-skill",
       "sourceType": "github",

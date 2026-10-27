@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import { Suspense } from "react";
 import { GroupTopBar, TabBar } from "@/components/group-nav";
 import { getGroup, getMyGroups, getMyProfile, requireUser } from "@/lib/data";
@@ -40,11 +41,12 @@ export default function GroupLayout({
         fallback={
           <header className="border-b border-rule/80 bg-desk">
             <div className="mx-auto flex h-16 max-w-[34rem] items-center px-4">
-              <img
+              <Image
                 src="/brand/wordmark.png"
                 alt="Homiework"
                 width={136}
                 height={30}
+                priority
                 className="h-6 w-auto"
               />
             </div>
@@ -54,13 +56,13 @@ export default function GroupLayout({
         <TopChrome params={params} />
       </Suspense>
 
+      <main className="mx-auto w-full max-w-[34rem] flex-1 px-4 pt-4 pb-24">
+        {children}
+      </main>
+
       <Suspense fallback={null}>
         <BottomChrome params={params} />
       </Suspense>
-
-      <main className="mx-auto w-full max-w-[34rem] flex-1 px-4 pt-6 pb-16">
-        {children}
-      </main>
     </div>
   );
 }

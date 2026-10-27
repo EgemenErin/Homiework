@@ -8,6 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
       "One topic a week, picked by one of your friends. Do the homework, then meet up and talk it out.",
     start_url: "/home",
     display: "standalone",
+    orientation: "portrait",
     background_color: "#faf7f3",
     theme_color: "#faf7f3",
     icons: [

@@ -7,6 +7,7 @@ import { Avatar, displayName } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { FormError } from "@/components/ui/field";
 import type { Member } from "@/lib/data";
+import { triggerHaptic } from "@/lib/haptics";
 
 export default function RotationEditor({
   groupId,
@@ -24,6 +25,7 @@ export default function RotationEditor({
   function move(index: number, delta: -1 | 1) {
     const target = index + delta;
     if (target < 0 || target >= items.length) return;
+    triggerHaptic("selection");
     setItems((prev) => {
       const copy = [...prev];
       const [item] = copy.splice(index, 1);

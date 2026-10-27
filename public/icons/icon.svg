@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Homiework">
+  <rect width="256" height="256" rx="36" fill="#1A2240"/>
+  <rect x="38" y="34" width="180" height="188" rx="12" fill="#FCFDFF"/>
+  <line x1="74" y1="34" x2="74" y2="222" stroke="#C8102E" stroke-width="3" stroke-opacity="0.55"/>
+  <line x1="38" y1="82" x2="218" y2="82" stroke="#B9C8E6" stroke-width="2"/>
+  <line x1="38" y1="118" x2="218" y2="118" stroke="#B9C8E6" stroke-width="2"/>
+  <line x1="38" y1="154" x2="218" y2="154" stroke="#B9C8E6" stroke-width="2"/>
+  <line x1="38" y1="190" x2="218" y2="190" stroke="#B9C8E6" stroke-width="2"/>
+  <rect x="86" y="95" width="106" height="18" rx="3" fill="#FFE45C"/>
+  <text x="90" y="150" font-family="Georgia, serif" font-size="68" font-weight="bold" fill="#1A2240">H</text>
+  <path d="M156 162 l14 14 l28 -32" fill="none" stroke="#C8102E" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

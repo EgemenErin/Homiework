@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <body style="margin:0;padding:32px 16px;background:#E4E9F2;font-family:Arial,Helvetica,sans-serif;color:#1A2240;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px;margin:0 auto;background:#FCFDFF;border-radius:6px;">
+      <tr>
+        <td style="padding:32px 28px;">
+          <p style="margin:0 0 20px;font-size:20px;font-weight:bold;">Homiework</p>
+          <p style="margin:0 0 8px;font-size:16px;line-height:1.5;">Your sign-in code:</p>
+          <p style="margin:0 0 24px;font-size:32px;font-weight:bold;letter-spacing:6px;">{{ .Token }}</p>
+          <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">Type it into the app, or tap the button to sign in on this device.</p>
+          <p style="margin:0 0 28px;">
+            <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&redirect_to={{ .RedirectTo }}"
+               style="display:inline-block;background:#1A2240;color:#FCFDFF;text-decoration:none;font-size:16px;font-weight:bold;padding:12px 20px;border-radius:6px;">Sign in to Homiework</a>
+          </p>
+          <p style="margin:0;font-size:14px;line-height:1.5;color:#566078;">The code and link work once and expire in an hour. If you didn't ask to sign in, you can ignore this email.</p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

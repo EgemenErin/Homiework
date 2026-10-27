@@ -5,20 +5,26 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Homiework",
     short_name: "Homiework",
     description:
-      "Your group takes turns picking what to learn each week, then meets up to talk it through.",
+      "One topic a week, picked by one of your friends. Do the homework, then meet up and talk it out.",
     start_url: "/home",
     display: "standalone",
-    background_color: "#e4e9f2",
-    theme_color: "#1a2240",
+    background_color: "#faf7f3",
+    theme_color: "#faf7f3",
     icons: [
       {
-        src: "/icons/icon.svg",
-        sizes: "any",
-        type: "image/svg+xml",
+        src: "/brand/icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icon",
+        src: "/brand/icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/brand/icon-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const ARTIFACT_DIR =
-  "C:/Users/egeme/.gemini/antigravity/brain/6f3d3830-0b65-437a-bf11-5d3b6ebb2702";
+  "C:/Users/egeme/.gemini/antigravity/brain/d544b720-c2b1-4160-8c6f-8bfc38fef4ce";
 const GROUP_ID = "aaaaaaaa-0000-0000-0000-000000000001";
 
 test.beforeEach(() => {
@@ -32,6 +32,23 @@ test("Full Homiework loop: landing, sign-in, handout, check-in, RSVP, backlog, c
     path: path.join(ARTIFACT_DIR, "01-landing-mobile.png"),
     fullPage: true,
   });
+
+  // Switch preview tabs on mobile landing screen
+  await page.getByRole("tab", { name: /2\. Homework/i }).click();
+  await expect(page.getByText(/This week's pack/i)).toBeVisible();
+  await page.screenshot({
+    path: path.join(ARTIFACT_DIR, "01b-landing-homework-mobile.png"),
+    fullPage: true,
+  });
+
+  await page.getByRole("tab", { name: /3\. Rotation/i }).click();
+  await expect(page.getByText(/Start a group & send one link/i)).toBeVisible();
+  await page.screenshot({
+    path: path.join(ARTIFACT_DIR, "01c-landing-rotation-mobile.png"),
+    fullPage: true,
+  });
+
+  await page.getByRole("tab", { name: /1\. Handout/i }).click();
 
   // Desktop viewport (1280x800) - Landing page
   await page.setViewportSize({ width: 1280, height: 800 });

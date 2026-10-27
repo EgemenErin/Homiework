@@ -39,8 +39,14 @@ export default function GroupLayout({
       <Suspense
         fallback={
           <header className="border-b border-rule/80 bg-desk">
-            <div className="mx-auto flex h-16 max-w-[34rem] items-center px-4 font-serif text-lg text-ink">
-              Homiework
+            <div className="mx-auto flex h-16 max-w-[34rem] items-center px-4">
+              <img
+                src="/brand/wordmark.png"
+                alt="Homiework"
+                width={136}
+                height={30}
+                className="h-6 w-auto"
+              />
             </div>
           </header>
         }

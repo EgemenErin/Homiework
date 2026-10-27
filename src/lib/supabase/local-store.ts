@@ -242,6 +242,7 @@ function writeDb(db: LocalDb) {
 }
 
 export function isLocalDemoMode() {
+  if (process.env.HOMIEWORK_DEMO === "1") return true;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
   return !key || key === "local-demo";
 }

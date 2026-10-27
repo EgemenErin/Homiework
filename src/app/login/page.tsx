@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { safeNext } from "@/lib/actions";
@@ -37,8 +38,15 @@ export default function LoginPage({
     <div className="min-h-dvh bg-desk text-ink">
       <header className="border-b border-rule/80">
         <div className="mx-auto flex max-w-[34rem] items-center justify-between px-4 py-3.5">
-          <Link href="/" className="font-serif text-xl text-ink">
-            Homiework
+          <Link href="/" aria-label="Homiework" className="inline-flex min-h-11 items-center">
+            <Image
+              src="/brand/wordmark.png"
+              alt="Homiework"
+              width={142}
+              height={31}
+              priority
+              className="h-6 w-auto"
+            />
           </Link>
         </div>
       </header>

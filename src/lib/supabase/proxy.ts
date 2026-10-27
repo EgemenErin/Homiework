@@ -10,7 +10,7 @@ export async function updateSession(request: NextRequest) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
   let signedIn = false;
 
-  if (!key || key === "local-demo") {
+  if (!key || key === "local-demo" || process.env.HOMIEWORK_DEMO === "1") {
     signedIn = Boolean(request.cookies.get("hw_demo_uid")?.value);
   } else {
     const supabase = createServerClient<Database>(

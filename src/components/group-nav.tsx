@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown, Plus } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Avatar } from "@/components/ui/avatar";
@@ -33,9 +34,17 @@ export function GroupTopBar({
         <div className="flex min-w-0 items-center gap-3">
           <Link
             href={`/g/${currentGroupId}`}
-            className="font-serif text-lg text-ink"
+            aria-label="Homiework"
+            className="inline-flex min-h-11 shrink-0 items-center"
           >
-            Homiework
+            <Image
+              src="/brand/wordmark.png"
+              alt="Homiework"
+              width={136}
+              height={30}
+              priority
+              className="h-6 w-auto"
+            />
           </Link>
 
           <div className="relative flex min-w-0 items-center">
@@ -46,7 +55,7 @@ export function GroupTopBar({
               id="group-switcher"
               value={currentGroupId}
               onChange={(e) => handleSwitch(e.target.value)}
-              className="min-h-11 max-w-44 truncate rounded-md border border-rule bg-desk-deep py-1.5 pr-7 pl-2.5 text-sm font-semibold text-ink hover:border-ink/60"
+              className="min-h-11 max-w-44 appearance-none truncate rounded-md border border-rule bg-desk-deep py-1.5 pr-7 pl-2.5 text-sm font-semibold text-ink hover:border-ink/60"
             >
               {groups.length > 0 ? (
                 groups.map((g) => (
@@ -144,8 +153,15 @@ export function SimpleHeader({ backHref, backLabel = "Back" }: { backHref?: stri
   return (
     <header className="border-b border-rule/80 bg-desk">
       <div className="mx-auto flex max-w-[34rem] items-center justify-between px-4 py-3">
-        <Link href="/home" className="font-serif text-lg text-ink">
-          Homiework
+        <Link href="/home" aria-label="Homiework" className="inline-flex min-h-11 items-center">
+          <Image
+            src="/brand/wordmark.png"
+            alt="Homiework"
+            width={136}
+            height={30}
+            priority
+            className="h-6 w-auto"
+          />
         </Link>
         {backHref ? (
           <Link

@@ -12,13 +12,13 @@ Data for the `ui-design` skill. Measured and decided 2026-10-26, before the firs
 ### Colour
 | Token | Hex | Role | Contrast |
 |---|---|---|---|
-| `desk` | `#E4E9F2` | App background | — |
-| `desk-deep` | `#D6DDEA` | Pressed rows, tab bar edge | — |
-| `paper` | `#FCFDFF` | The handout and sheets only | — |
-| `ink` | `#1A2240` | Primary text, primary button | 15.3:1 on paper |
-| `pencil` (= `slate-600`) | `#566078` | Secondary text | 6.2:1 paper, 5.2:1 desk |
-| `rule` | `#B9C8E6` | Ruled lines, dividers. **Never text.** | — |
-| `red` | `#C8102E` | Due stamp, "your turn", ticks, errors | 5.8:1 paper, 4.8:1 desk |
+| `desk` | `#FAF7F3` | App background | — |
+| `desk-deep` | `#F0EBE3` | Pressed rows, tab bar edge | — |
+| `paper` | `#FFFFFF` | The handout and sheets only | — |
+| `ink` | `#111111` | Primary text, primary button | 18.8:1 on paper, 17.8:1 on desk |
+| `pencil` (= `slate-600`) | `#57534E` | Secondary text | 7.6:1 paper, 7.2:1 desk |
+| `rule` | `#DED8CE` | Ruled lines, dividers. **Never text.** | — |
+| `red` | `#C8102E` | Due stamp, "your turn", ticks, errors | 5.9:1 paper, 5.6:1 desk |
 | `highlight` | `#FFE45C` | Behind "done" names and streak numbers; ink text on top | — |
 
 Grey ramp `slate-50…900` is tinted toward ink. Text-safe from `slate-600` up on both paper and desk.

@@ -2,9 +2,13 @@ import { test, expect } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 
-const ARTIFACT_DIR =
-  "C:/Users/egeme/.gemini/antigravity/brain/3cb6ac42-7ad4-463b-b131-0267d0900853";
 const GROUP_ID = "aaaaaaaa-0000-0000-0000-000000000001";
+
+// 1x1 valid PNG buffer for testing profile picture upload
+const TINY_PNG_BUFFER = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 test.beforeEach(() => {
   const dbPath = path.join(process.cwd(), ".local-db.json");
@@ -13,87 +17,153 @@ test.beforeEach(() => {
   }
 });
 
-test("Phone sign-in with SMS code, account creation survey, and optional contact group discovery", async ({
+test("Profile picture upload and fetching number from the Phone app in onboarding and profile", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
 
-  // 1. Go to /login?next=/onboarding and sign in with a new phone number
+  // Mock the device's native Phone / Contacts app picker on the phone itself
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "contacts", {
+      configurable: true,
+      value: {
+        select: async (_props: string[], opts?: { multiple?: boolean }) => {
+          if (opts?.multiple) {
+            return [
+              {
+                name: ["Mert"],
+                tel: ["+1 555 010 1002"],
+                email: ["mert@homiework.test"],
+              },
+              {
+                name: ["Aylin"],
+                tel: ["+1 555 010 1004"],
+                email: ["aylin@homiework.test"],
+              },
+            ];
+          }
+          return [
+            {
+              name: ["Deniz (My Card)"],
+              tel: ["+1 555 010 9999"],
+              email: [],
+            },
+          ];
+        },
+      },
+    });
+  });
+
+  // 1. Go to /login?next=/onboarding and fetch number from the Phone app
   await page.goto("/login?next=/onboarding");
   await expect(
-    page.getByRole("heading", { name: /Sign in to Homiework/i }),
+    page.getByRole("heading", { name: /Welcome to Homiework/i }),
   ).toBeVisible();
 
-  await page.getByLabel(/Phone number/i).fill("+1 555 010 9999");
-  await page.screenshot({
-    path: path.join(ARTIFACT_DIR, "phone-01-login.png"),
-    fullPage: true,
-  });
-
-  await page.getByRole("button", { name: /Text me a sign-in code/i }).click();
-
-  // 2. Confirm SMS message preview + 6-digit code step appears
+  await page.getByRole("button", { name: /Fetch number from Phone app/i }).click();
   await expect(
-    page.getByText(/We texted a 6-digit code to/i),
+    page.getByText(/Use your Phone app to fetch your number\?/i),
   ).toBeVisible();
-  await expect(page.getByText(/Delivered text message/i)).toBeVisible();
-  await page.screenshot({
-    path: path.join(ARTIFACT_DIR, "phone-02-sms-code.png"),
-    fullPage: true,
-  });
+  await page.getByRole("button", { name: /^Allow access$/i }).click();
 
-  await page.getByRole("button", { name: /Fill 123456/i }).click();
-  await page.getByRole("button", { name: /^Sign in$/i }).click();
+  await expect(page.getByLabel(/Phone number or email/i)).toHaveValue(
+    "+1 555 010 9999",
+  );
 
-  // 3. Account creation: Name, ink color, and study survey
+  await page.getByRole("button", { name: /^Continue$/i }).click();
+
+  // 2. Confirm SMS code step
+  await expect(
+    page.getByRole("heading", { name: /Enter code sent to your phone/i }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /Tap to fill/i }).click();
+
+  // 3. Onboarding: skip intro, upload profile picture, fetch number from Phone app
   await page.waitForURL("**/onboarding");
+  await page.getByRole("button", { name: /Skip intro/i }).click();
+
   await expect(
-    page.getByRole("heading", { name: /First, your name/i }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: /A quick note on how you study/i }),
+    page.getByRole("heading", { name: /What do your friends call you\?/i }),
   ).toBeVisible();
 
-  await page.getByLabel(/What do your friends call you\?/i).fill("Deniz");
-  await page.getByText("History", { exact: true }).click();
-  await page.getByText("Tech & AI", { exact: true }).click();
-  await page.getByText("Deep dives (45 min)", { exact: true }).click();
-  await page.getByText("Weeknights", { exact: true }).click();
-  await page
-    .getByLabel(/What do you study or do during the week\?/i)
-    .fill("CS student at TU Berlin");
-  await page.getByText("A friend", { exact: true }).click();
-
-  await page.screenshot({
-    path: path.join(ARTIFACT_DIR, "phone-03-onboarding-survey.png"),
-    fullPage: true,
+  // Upload profile picture
+  const fileInput = page.locator('input[type="file"]');
+  await fileInput.setInputFiles({
+    name: "avatar.png",
+    mimeType: "image/png",
+    buffer: TINY_PNG_BUFFER,
   });
+  await expect(
+    page.getByRole("button", { name: /Change photo/i }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Remove photo/i }),
+  ).toBeVisible();
 
+  // Phone is already connected from Phone sign-in; test disconnecting and re-fetching from Phone app
+  await expect(page.getByText("+15550109999")).toBeVisible();
+  await page.getByRole("button", { name: /^Disconnect$/i }).click();
+
+  await page.getByRole("button", { name: /Fetch number from Phone app/i }).click();
+  await expect(
+    page.getByText(/Use your Phone app to fetch your number\?/i),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /^Allow access$/i }).click();
+  await expect(page.getByText("+15550109999")).toBeVisible();
+  await expect(page.getByText(/\(from Phone app\)/i)).toBeVisible();
+
+  await page.getByLabel(/Your name/i).fill("Deniz");
+  await page.getByRole("button", { name: /^Continue$/i }).first().click();
+
+  // Study step (multi-select topics + multi-select weekly homework style)
+  await expect(
+    page.getByRole("heading", { name: /What are you curious about\?/i }),
+  ).toBeVisible();
+  await page.getByText("History", { exact: true }).click();
+  await page.getByText("Science", { exact: true }).click();
+  await page.getByText("Quick reads (15 min)", { exact: true }).click();
+  await page.getByText("Deep dives (45 min)", { exact: true }).click();
+  await expect(
+    page.getByRole("checkbox", { name: "Quick reads (15 min)" }),
+  ).toBeChecked();
+  await expect(
+    page.getByRole("checkbox", { name: "Deep dives (45 min)" }),
+  ).toBeChecked();
+  await page.getByRole("button", { name: /^Continue$/i }).first().click();
+
+  // Schedule step (multi-select meetup times)
+  await expect(
+    page.getByRole("heading", { name: /When are you usually free\?/i }),
+  ).toBeVisible();
+  await page.getByText("Weekend afternoons", { exact: true }).click();
+  await expect(
+    page.getByRole("checkbox", { name: "Weeknights" }),
+  ).toBeChecked();
+  await expect(
+    page.getByRole("checkbox", { name: "Weekend afternoons" }),
+  ).toBeChecked();
   await page.getByRole("button", { name: /Save and continue/i }).click();
 
-  // 4. Optional contacts discovery step
+  // 4. Switch to Join with invite and fetch friends' groups from Phone app
   await expect(
-    page.getByRole("heading", { name: /Find your friends' study groups/i }),
+    page.getByRole("heading", { name: /Start a group/i }),
   ).toBeVisible();
-
   await page
-    .getByRole("button", { name: /Fill sample contacts \(Mert & Aylin\)/i })
-    .click();
-  await page
-    .getByRole("button", { name: /Find study groups from contacts/i })
+    .getByRole("button", { name: /Have an invite from a friend\?/i })
     .click();
 
+  await page.getByRole("button", { name: /Fetch number from Phone app/i }).click();
+  await expect(
+    page.getByText(/Use your Phone app to fetch your number & contacts\?/i),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /^Allow access$/i }).click();
+
+  await expect(page.getByText(/Fetched from Phone app/i).first()).toBeVisible();
   await expect(
     page.getByText(/Study groups with people you know/i),
   ).toBeVisible();
   await expect(page.getByText("With Aylin, Mert")).toBeVisible();
 
-  await page.screenshot({
-    path: path.join(ARTIFACT_DIR, "phone-04-contacts-matches.png"),
-    fullPage: true,
-  });
-
-  // 5. Join the matched group directly from contacts
   await page.getByRole("button", { name: /Join The Homies/i }).click();
   await page.waitForURL(`**/g/${GROUP_ID}`);
   await expect(
@@ -101,6 +171,17 @@ test("Phone sign-in with SMS code, account creation survey, and optional contact
       name: /How does the Federal Reserve set interest rates\?/i,
     }),
   ).toBeVisible();
+
+  // 5. Open /me and verify profile photo & Phone app number persist, and study survey is NOT shown on /me
+  await page.getByRole("link", { name: "Me" }).click();
+  await page.waitForURL("**/me**");
+  await expect(
+    page.getByRole("button", { name: /Change photo/i }),
+  ).toBeVisible();
+  await expect(page.getByText(/Fetched from Phone app/i).first()).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /A quick note on how you study/i }),
+  ).toHaveCount(0);
 });
 
 test("Full Homiework loop: landing, email sign-in, handout, check-in, RSVP, backlog, crew, close week, and assign next topic", async ({
@@ -115,14 +196,14 @@ test("Full Homiework loop: landing, email sign-in, handout, check-in, RSVP, back
     }),
   ).toBeVisible();
 
-  // Sign in as Selin via Email tab
+  // Sign in as Selin via unified login input
   await page.goto("/login");
-  await page.getByText("Email", { exact: true }).click();
-  await page.getByLabel(/Email address/i).fill("selin@homiework.test");
-  await page.getByRole("button", { name: /Email me a sign-in code/i }).click();
-  await expect(page.getByLabel(/6-digit code/i)).toBeVisible();
-  await page.getByLabel(/6-digit code/i).fill("123456");
-  await page.getByRole("button", { name: /^Sign in$/i }).click();
+  await page.getByLabel(/Phone number or email/i).fill("selin@homiework.test");
+  await page.getByRole("button", { name: /^Continue$/i }).click();
+  await expect(
+    page.getByRole("heading", { name: /Enter code sent to your email/i }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /Tap to fill/i }).click();
 
   await page.waitForURL(`**/g/${GROUP_ID}`);
   await expect(
@@ -167,11 +248,9 @@ test("Full Homiework loop: landing, email sign-in, handout, check-in, RSVP, back
   // Switch to Kerem (this week's host) to close Week 3
   await context.clearCookies();
   await page.goto("/login");
-  await page.getByText("Email", { exact: true }).click();
-  await page.getByLabel(/Email address/i).fill("kerem@homiework.test");
-  await page.getByRole("button", { name: /Email me a sign-in code/i }).click();
-  await page.getByLabel(/6-digit code/i).fill("123456");
-  await page.getByRole("button", { name: /^Sign in$/i }).click();
+  await page.getByLabel(/Phone number or email/i).fill("kerem@homiework.test");
+  await page.getByRole("button", { name: /^Continue$/i }).click();
+  await page.getByRole("button", { name: /Tap to fill/i }).click();
   await page.waitForURL(`**/g/${GROUP_ID}`);
 
   await page.getByRole("link", { name: /Close the week/i }).click();
@@ -188,10 +267,9 @@ test("Full Homiework loop: landing, email sign-in, handout, check-in, RSVP, back
   // Switch to Aylin (Week 4 host) via Phone sign-in (+15550101004)
   await context.clearCookies();
   await page.goto("/login");
-  await page.getByLabel(/Phone number/i).fill("+15550101004");
-  await page.getByRole("button", { name: /Text me a sign-in code/i }).click();
-  await page.getByLabel(/6-digit code/i).fill("123456");
-  await page.getByRole("button", { name: /^Sign in$/i }).click();
+  await page.getByLabel(/Phone number or email/i).fill("+15550101004");
+  await page.getByRole("button", { name: /^Continue$/i }).click();
+  await page.getByRole("button", { name: /Tap to fill/i }).click();
   await page.waitForURL(`**/g/${GROUP_ID}`);
 
   await expect(

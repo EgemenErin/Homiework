@@ -6,10 +6,12 @@ import {
   ContactGroupFinder,
   ProfileStepForm,
 } from "@/app/onboarding/onboarding-forms";
+import { CampusClubsDirectory } from "@/components/campus-directory";
 import { SimpleHeader, TabBar } from "@/components/group-nav";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { safeNext } from "@/lib/actions";
 import {
+  getCampusGroups,
   getMyContactMatches,
   getMyGroups,
   getMyProfile,
@@ -26,13 +28,15 @@ async function MeContent({
 }: {
   searchParams: Promise<{ from?: string }>;
 }) {
-  const [user, profile, groups, contactData, query] = await Promise.all([
-    requireUser("/me"),
-    getMyProfile(),
-    getMyGroups(),
-    getMyContactMatches(),
-    searchParams,
-  ]);
+  const [user, profile, groups, contactData, campusClubs, query] =
+    await Promise.all([
+      requireUser("/me"),
+      getMyProfile(),
+      getMyGroups(),
+      getMyContactMatches(),
+      getCampusGroups(),
+      searchParams,
+    ]);
 
   const from = safeNext(
     query.from,
@@ -58,7 +62,6 @@ async function MeContent({
           </div>
           <ProfileStepForm
             profile={profile}
-            includeSurvey
             submitLabel="Save profile"
           />
         </section>
@@ -83,6 +86,21 @@ async function MeContent({
             initialContactsCount={contactData.contactsCount}
             initialPhone={profile?.phone ?? null}
           />
+        </section>
+
+        <section
+          aria-labelledby="campus-me-heading"
+          className="space-y-4 border-t border-rule pt-8"
+        >
+          <div className="space-y-1">
+            <h2 id="campus-me-heading" className="font-serif text-2xl text-ink">
+              University Clubs
+            </h2>
+            <p className="text-base text-pencil">
+              Browse open study circles at universities and campuses.
+            </p>
+          </div>
+          <CampusClubsDirectory initialClubs={campusClubs} />
         </section>
 
         <section

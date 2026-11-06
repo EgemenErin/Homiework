@@ -1,12 +1,14 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { BookOpen, GraduationCap, Plus, Trash2 } from "lucide-react";
 import { useActionState, useState } from "react";
 import { publishTopic } from "@/app/actions/week";
+import { ClubPassTrigger } from "@/components/club-pass-dialog";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Field, FormError, inputClass } from "@/components/ui/field";
 import { PassTurnButton } from "@/components/week-controls";
 import type { ActionState } from "@/lib/actions";
+import type { SyllabusWeek } from "@/lib/syllabus-packs";
 
 export type ResourceDraft = {
   key: string;
@@ -14,6 +16,13 @@ export type ResourceDraft = {
   label: string;
   kind: "read" | "watch" | "listen" | "other";
   minutes: string;
+};
+
+export type ExamQuestionDraft = {
+  key: string;
+  prompt: string;
+  options: [string, string, string, string];
+  correct_index: number;
 };
 
 export type TopIdea = {
@@ -25,6 +34,8 @@ export type TopIdea = {
 
 export function AssignForm({
   groupId,
+  groupName,
+  isClubPass,
   roundId,
   roundNumber,
   isEditing,
@@ -34,11 +45,16 @@ export function AssignForm({
   defaultMeetupLocal,
   defaultPlace,
   defaultResources,
+  defaultQuestions,
+  activePackTitle,
+  activePackWeekData,
   topIdea,
   nextHostName,
   canPass,
 }: {
   groupId: string;
+  groupName: string;
+  isClubPass: boolean;
   roundId: string;
   roundNumber: number;
   isEditing: boolean;
@@ -48,6 +64,9 @@ export function AssignForm({
   defaultMeetupLocal: string;
   defaultPlace: string;
   defaultResources: ResourceDraft[];
+  defaultQuestions: ExamQuestionDraft[];
+  activePackTitle?: string | null;
+  activePackWeekData?: SyllabusWeek | null;
   topIdea: TopIdea | null;
   nextHostName: string | null;
   canPass: boolean;
@@ -64,12 +83,38 @@ export function AssignForm({
       ? defaultResources
       : [{ key: "r-0", url: "", label: "", kind: "read", minutes: "" }],
   );
+  const [questions, setQuestions] = useState<ExamQuestionDraft[]>(
+    defaultQuestions,
+  );
 
   function applyTopIdea() {
     if (!topIdea) return;
     setTitle(topIdea.title);
     if (topIdea.pitch && !why.trim()) setWhy(topIdea.pitch);
     setSuggestionId(topIdea.id);
+  }
+
+  function applyPackWeek() {
+    if (!activePackWeekData) return;
+    setTitle(activePackWeekData.topic_title);
+    setWhy(activePackWeekData.why);
+    setRows(
+      activePackWeekData.resources.map((r, i) => ({
+        key: `pack-r-${i}-${Date.now()}`,
+        url: r.url,
+        label: r.label,
+        kind: r.kind,
+        minutes: String(r.minutes),
+      })),
+    );
+    setQuestions(
+      activePackWeekData.exam_questions.map((q, i) => ({
+        key: `pack-q-${i}-${Date.now()}`,
+        prompt: q.prompt,
+        options: [...q.options] as [string, string, string, string],
+        correct_index: q.correct_index,
+      })),
+    );
   }
 
   function addRow() {
@@ -98,8 +143,71 @@ export function AssignForm({
     );
   }
 
+  function addQuestion() {
+    if (questions.length >= 5) return;
+    setQuestions((prev) => [
+      ...prev,
+      {
+        key: `q-${Date.now()}-${prev.length}`,
+        prompt: "",
+        options: ["", "", "", ""],
+        correct_index: 0,
+      },
+    ]);
+  }
+
+  function removeQuestion(key: string) {
+    setQuestions((prev) => prev.filter((q) => q.key !== key));
+  }
+
+  function updateQuestion(key: string, patch: Partial<ExamQuestionDraft>) {
+    setQuestions((prev) =>
+      prev.map((q) => (q.key === key ? { ...q, ...patch } : q)),
+    );
+  }
+
+  function updateQuestionOption(
+    key: string,
+    optIdx: 0 | 1 | 2 | 3,
+    val: string,
+  ) {
+    setQuestions((prev) =>
+      prev.map((q) => {
+        if (q.key !== key) return q;
+        const nextOpts = [...q.options] as [string, string, string, string];
+        nextOpts[optIdx] = val;
+        return { ...q, options: nextOpts };
+      }),
+    );
+  }
+
   return (
     <div className="space-y-8">
+      {activePackTitle && activePackWeekData ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-ink bg-paper p-4 shadow-paper">
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-red">
+              <BookOpen aria-hidden className="size-4" />
+              <span>
+                Active Syllabus Pack: {activePackTitle} (Week{" "}
+                {activePackWeekData.weekNumber})
+              </span>
+            </p>
+            <p className="font-semibold text-ink">
+              {activePackWeekData.topic_title}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            onClick={applyPackWeek}
+          >
+            Load Week {activePackWeekData.weekNumber} syllabus
+          </Button>
+        </div>
+      ) : null}
+
       {topIdea && !isEditing ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-rule bg-desk-deep px-4 py-3">
           <div className="min-w-0 flex-1">
@@ -286,6 +394,136 @@ export function AssignForm({
               Add another link
             </Button>
           ) : null}
+        </fieldset>
+
+        {/* Pop Quiz / "Exam Your Friends" Builder */}
+        <fieldset className="space-y-4 border-t border-rule pt-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <legend className="flex items-center gap-2 text-lg font-semibold text-ink">
+              <GraduationCap aria-hidden className="size-5" />
+              <span>Exam your friends (Pop Quiz)</span>
+            </legend>
+            <span className="text-sm text-pencil">
+              Optional · Up to 5 questions
+            </span>
+          </div>
+
+          {!isClubPass && questions.length === 0 ? (
+            <div className="space-y-3 rounded-md border border-rule bg-desk-deep p-4">
+              <p className="text-sm text-pencil">
+                Want to test who actually read the homework? Upgrade{" "}
+                <span className="font-semibold text-ink">{groupName}</span> to
+                Club Pass to write custom Pop Quizzes and grade the crew with a
+                red stamp.
+              </p>
+              <ClubPassTrigger
+                groupId={groupId}
+                groupName={groupName}
+                isClubPass={isClubPass}
+                triggerLabel="Unlock Custom Friend Exams"
+                variant="secondary"
+              />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {questions.map((q, qIdx) => (
+                <div
+                  key={q.key}
+                  className="space-y-3 rounded-md border border-rule bg-desk-deep/60 p-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-ink">
+                      Question {qIdx + 1}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeQuestion(q.key)}
+                      className="inline-flex min-h-9 items-center gap-1 text-sm text-pencil hover:text-red"
+                    >
+                      <Trash2 aria-hidden className="size-4" />
+                      Remove
+                    </button>
+                  </div>
+
+                  <Field
+                    label="Question prompt"
+                    htmlFor={`q-prompt-${q.key}`}
+                  >
+                    <input
+                      id={`q-prompt-${q.key}`}
+                      name="exam_prompt"
+                      type="text"
+                      maxLength={240}
+                      value={q.prompt}
+                      onChange={(e) =>
+                        updateQuestion(q.key, { prompt: e.target.value })
+                      }
+                      placeholder="e.g. Which regional Fed president always gets a vote?"
+                      className={inputClass}
+                    />
+                  </Field>
+
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    {([0, 1, 2, 3] as const).map((optIdx) => (
+                      <Field
+                        key={optIdx}
+                        label={`Choice ${String.fromCharCode(65 + optIdx)}`}
+                        htmlFor={`q-${q.key}-opt-${optIdx}`}
+                        optional={optIdx >= 2}
+                      >
+                        <input
+                          id={`q-${q.key}-opt-${optIdx}`}
+                          name={`exam_opt_${optIdx}`}
+                          type="text"
+                          maxLength={120}
+                          value={q.options[optIdx]}
+                          onChange={(e) =>
+                            updateQuestionOption(q.key, optIdx, e.target.value)
+                          }
+                          placeholder={`Option ${String.fromCharCode(65 + optIdx)}`}
+                          className={inputClass}
+                        />
+                      </Field>
+                    ))}
+                  </div>
+
+                  <Field
+                    label="Correct answer"
+                    htmlFor={`q-correct-${q.key}`}
+                  >
+                    <select
+                      id={`q-correct-${q.key}`}
+                      name="exam_correct"
+                      value={q.correct_index}
+                      onChange={(e) =>
+                        updateQuestion(q.key, {
+                          correct_index: Number(e.target.value),
+                        })
+                      }
+                      className={inputClass}
+                    >
+                      <option value={0}>Choice A</option>
+                      <option value={1}>Choice B</option>
+                      <option value={2}>Choice C</option>
+                      <option value={3}>Choice D</option>
+                    </select>
+                  </Field>
+                </div>
+              ))}
+
+              {questions.length < 5 ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  onClick={addQuestion}
+                >
+                  <Plus aria-hidden className="size-4" />
+                  Add a Pop Quiz question
+                </Button>
+              ) : null}
+            </div>
+          )}
         </fieldset>
 
         <fieldset className="space-y-4 border-t border-rule pt-6">

@@ -17,7 +17,8 @@ async function CloseContent({
 }) {
   const { groupId } = await params;
   await requireUser(`/g/${groupId}/close`);
-  const { userId, members, round, rsvps, checkins } = await getWeek(groupId);
+  const { userId, group, members, round, rsvps, checkins, notes } =
+    await getWeek(groupId);
 
   const me = members.find((m) => m.user_id === userId);
   const canClose =
@@ -38,6 +39,7 @@ async function CloseContent({
 
   const next = nextHost(members, round.host_id);
   const nextName = next ? displayName(next.profile) : null;
+  const myNote = notes.find((n) => n.user_id === userId);
 
   return (
     <div className="space-y-6">
@@ -56,6 +58,9 @@ async function CloseContent({
         defaultAttendedIds={defaultAttended}
         doneIds={doneIds}
         nextHostName={nextName}
+        potEnabled={group.pot_enabled}
+        potStakeText={group.pot_stake_text}
+        defaultPostNote={myNote?.post_meetup_note ?? ""}
       />
     </div>
   );

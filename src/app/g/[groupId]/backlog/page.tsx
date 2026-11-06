@@ -2,10 +2,14 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { displayName } from "@/components/ui/avatar";
 import { getBacklog, requireUser } from "@/lib/data";
-import { AddSuggestionForm, SuggestionRow } from "./backlog-client";
+import {
+  AddSuggestionForm,
+  SuggestionRow,
+  SyllabusPacksSection,
+} from "./backlog-client";
 
 export const metadata: Metadata = {
-  title: "Topic backlog",
+  title: "Topic backlog & syllabus packs",
 };
 
 async function BacklogContent({
@@ -15,15 +19,25 @@ async function BacklogContent({
 }) {
   const { groupId } = await params;
   await requireUser(`/g/${groupId}/backlog`);
-  const { userId, open, used, round } = await getBacklog(groupId);
+  const { userId, group, open, used, round } = await getBacklog(groupId);
   const canPick = Boolean(round && round.host_id === userId);
 
   return (
     <div className="space-y-8">
+      <SyllabusPacksSection
+        groupId={groupId}
+        groupName={group.name}
+        planTier={group.plan_tier}
+        activePackId={group.active_pack_id}
+        activePackWeek={group.active_pack_week}
+        unlockedPacks={group.unlocked_packs ?? []}
+        canPickForThisWeek={canPick}
+      />
+
       <div>
         <h1 className="font-serif text-2xl text-ink">Topic backlog</h1>
         <p className="mt-1 text-base text-pencil">
-          Drop ideas here anytime. When it is your turn to host, grab the top-voted one or pick your own.
+          Drop standalone ideas here anytime. When it is your turn to host, grab the top-voted one or pick your own.
         </p>
       </div>
 

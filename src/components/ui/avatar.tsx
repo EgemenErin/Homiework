@@ -20,13 +20,42 @@ export function Avatar({
   size = "md",
   ring,
 }: {
-  profile: Pick<Profile, "display_name" | "avatar_color">;
+  profile: Pick<Profile, "display_name" | "avatar_color"> & {
+    avatar_url?: string | null;
+  };
   size?: "sm" | "md" | "lg";
   /** Highlighter ring for "done" */
   ring?: boolean;
 }) {
   const name = displayName(profile);
-  const dims = size === "sm" ? "size-8 text-sm" : size === "lg" ? "size-14 text-2xl" : "size-11 text-lg";
+  const dims =
+    size === "sm"
+      ? "size-8 text-sm"
+      : size === "lg"
+        ? "size-14 text-2xl"
+        : "size-11 text-lg";
+  const avatarUrl = profile.avatar_url?.trim();
+
+  if (avatarUrl) {
+    return (
+      <span
+        aria-hidden
+        className={`relative inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full bg-desk-deep ${dims} ${
+          ring
+            ? "ring-4 ring-highlight"
+            : "shadow-[inset_0_0_0_1px_rgba(17,17,17,0.14)]"
+        }`}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={avatarUrl}
+          alt=""
+          className="size-full object-cover"
+        />
+      </span>
+    );
+  }
+
   return (
     <span
       aria-hidden

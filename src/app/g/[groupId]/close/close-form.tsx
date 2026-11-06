@@ -5,7 +5,7 @@ import { useActionState, useState } from "react";
 import { closeRound } from "@/app/actions/week";
 import { Avatar, displayName } from "@/components/ui/avatar";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { FormError } from "@/components/ui/field";
+import { Field, FormError, inputClass } from "@/components/ui/field";
 import type { ActionState } from "@/lib/actions";
 import type { Member } from "@/lib/data";
 
@@ -17,6 +17,9 @@ export function CloseRoundForm({
   defaultAttendedIds,
   doneIds,
   nextHostName,
+  potEnabled,
+  potStakeText,
+  defaultPostNote = "",
 }: {
   groupId: string;
   roundId: string;
@@ -25,6 +28,9 @@ export function CloseRoundForm({
   defaultAttendedIds: readonly string[];
   doneIds: readonly string[];
   nextHostName: string | null;
+  potEnabled?: boolean;
+  potStakeText?: string;
+  defaultPostNote?: string;
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(
     closeRound,
@@ -55,6 +61,9 @@ export function CloseRoundForm({
         </legend>
         <p className="text-sm text-pencil">
           Tap each person who was there. Anyone who RSVPed &ldquo;Going&rdquo; is pre-selected.
+          {potEnabled
+            ? ` Anyone who attended without checking in on the homework owes ${potStakeText || "the Homework Jar"}.`
+            : ""}
         </p>
 
         <div className="divide-y divide-rule/80 border-y border-rule">
@@ -112,6 +121,23 @@ export function CloseRoundForm({
           })}
         </div>
       </fieldset>
+
+      <Field
+        label="Post-meetup takeaway or quote of the night"
+        htmlFor="post_meetup_note"
+        optional
+        hint="Saved to the week's archive and compiled into your 3-month Semester Syllabus Zine."
+      >
+        <textarea
+          id="post_meetup_note"
+          name="post_meetup_note"
+          rows={3}
+          maxLength={1000}
+          defaultValue={defaultPostNote}
+          placeholder="e.g. Unanimous verdict that central bank independence is hanging by a thread..."
+          className={inputClass}
+        />
+      </Field>
 
       {nextHostName ? (
         <p className="text-base text-ink">

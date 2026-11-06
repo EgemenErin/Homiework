@@ -1,3 +1,4 @@
+import { CalendarPlus, Coffee } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -9,9 +10,16 @@ import {
   PassTurnButton,
   RsvpControl,
 } from "@/components/week-controls";
+import { WeekExamSection } from "@/components/week-exam";
+import { WeekNotesSection } from "@/components/week-notes";
+import {
+  buildGoogleCalendarUrl,
+  buildOutlookCalendarUrl,
+} from "@/lib/calendar";
 import { getWeek, requireUser } from "@/lib/data";
 import { formatMeetup } from "@/lib/dates";
 import { nextHost } from "@/lib/rotation";
+import { getSyllabusPack } from "@/lib/syllabus-packs";
 
 export const metadata: Metadata = {
   title: "This week",
@@ -34,6 +42,10 @@ async function WeekContent({
     resources,
     rsvps,
     checkins,
+    notes,
+    questions,
+    examSubmissions,
+    potEntries,
   } = await getWeek(groupId);
 
   if (!round) {
@@ -61,19 +73,35 @@ async function WeekContent({
       ? displayName(nextMember.profile)
       : null;
 
+  const activePack = getSyllabusPack(group.active_pack_id);
+  const activePackBadge = activePack
+    ? `${activePack.title} · Week ${Math.min(group.active_pack_week || 1, activePack.weeksCount)}/${activePack.weeksCount}`
+    : null;
+
+  const unsettledPotCount = potEntries.filter((p) => !p.settled).length;
+
   // State 1: Waiting for the host to set this week's topic
   if (round.status === "awaiting_topic") {
     return (
       <div className="space-y-8">
         <article className="paper-ruled rounded-md border border-rule/80 py-6 pr-5 pl-12 shadow-paper">
-          <p className="text-sm text-pencil">Week {round.number}</p>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm text-pencil">Week {round.number}</p>
+            {activePackBadge ? (
+              <span className="highlighted px-1.5 text-sm font-semibold text-ink">
+                {activePackBadge}
+              </span>
+            ) : null}
+          </div>
           {isHost ? (
             <>
               <h1 className="mt-2 font-serif text-4xl leading-tight text-ink">
                 It&apos;s your turn to set the homework.
               </h1>
               <p className="mt-3 max-w-[56ch] text-base text-ink">
-                Pick a subject for the group to study, attach two or three links, and confirm when and where you are meeting.
+                {activePack
+                  ? `Load Week ${Math.min(group.active_pack_week || 1, activePack.weeksCount)} from "${activePack.title}" in one tap, or pick your own topic and links.`
+                  : "Pick a subject for the group to study, attach two or three links, and confirm when and where you are meeting."}
               </p>
               <div className="mt-6 flex flex-wrap items-center gap-4">
                 <ButtonLink
@@ -98,11 +126,15 @@ async function WeekContent({
                 Waiting on {hostName} to set the topic.
               </h1>
               <p className="mt-3 max-w-[56ch] text-base text-pencil">
-                {hostName} has the pen for week {round.number}. While you wait, add or upvote ideas in the backlog.
+                {hostName} has the pen for week {round.number}. While you wait,
+                browse Syllabus Packs or upvote ideas in the backlog.
               </p>
-              <div className="mt-6">
+              <div className="mt-6 flex flex-wrap items-center gap-3">
                 <ButtonLink href={`/g/${groupId}/backlog`} variant="secondary">
-                  Open topic backlog
+                  Open backlog &amp; syllabus packs
+                </ButtonLink>
+                <ButtonLink href={`/g/${groupId}/zine`} variant="tertiary">
+                  View Semester Zine
                 </ButtonLink>
               </div>
             </>
@@ -137,6 +169,23 @@ async function WeekContent({
     out: rsvps.filter((r) => r.status === "out").length,
   };
 
+  const calEvent = round.meetup_at
+    ? {
+        roundId: round.id,
+        roundNumber: round.number,
+        groupName: group.name,
+        topicTitle: round.topic_title ?? `Week ${round.number}`,
+        why: round.why,
+        meetupAtIso: round.meetup_at,
+        meetupPlace: round.meetup_place,
+        resources: resources.map((r) => ({ label: r.label, url: r.url })),
+      }
+    : null;
+
+  const gcalUrl = calEvent ? buildGoogleCalendarUrl(calEvent) : null;
+  const outlookUrl = calEvent ? buildOutlookCalendarUrl(calEvent) : null;
+  const icsUrl = `/api/g/${groupId}/calendar.ics?round=${round.id}`;
+
   return (
     <div className="space-y-8">
       <div className="space-y-3">
@@ -145,6 +194,10 @@ async function WeekContent({
           hostName={hostName}
           timezone={group.timezone}
           fresh={isFresh}
+          paperTheme={group.paper_theme}
+          stampStyle={group.stamp_style}
+          stampMotto={group.stamp_motto}
+          activePackBadge={activePackBadge}
         />
 
         {isHost ? (
@@ -155,7 +208,7 @@ async function WeekContent({
                 href={`/g/${groupId}/assign`}
                 className="inline-flex min-h-11 items-center font-semibold text-ink underline decoration-rule decoration-2 underline-offset-4 hover:decoration-ink"
               >
-                Edit topic
+                Edit topic &amp; quiz
               </Link>
               <Link
                 href={`/g/${groupId}/close`}
@@ -180,17 +233,52 @@ async function WeekContent({
       {/* Primary action on the screen */}
       <CheckinButton roundId={round.id} initialDone={myDone} />
 
-      {/* Meetup time, place, and RSVP */}
+      {/* Meetup time, place, Calendar sync, and RSVP */}
       <section aria-labelledby="meetup-heading" className="space-y-3">
-        <div>
-          <h2 id="meetup-heading" className="text-lg font-semibold text-ink">
-            {round.meetup_at
-              ? formatMeetup(round.meetup_at, group.timezone)
-              : "Meetup time to be confirmed"}
-          </h2>
-          <p className="text-base text-pencil">
-            {round.meetup_place || "Place to be decided in the group chat"}
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 id="meetup-heading" className="text-lg font-semibold text-ink">
+              {round.meetup_at
+                ? formatMeetup(round.meetup_at, group.timezone)
+                : "Meetup time to be confirmed"}
+            </h2>
+            <p className="text-base text-pencil">
+              {round.meetup_place || "Place to be decided in the group chat"}
+            </p>
+          </div>
+
+          {calEvent ? (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <CalendarPlus aria-hidden className="size-4 text-pencil" />
+              {gcalUrl ? (
+                <a
+                  href={gcalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-9 items-center rounded-md border border-rule bg-desk-deep px-2.5 py-1 font-semibold text-ink hover:border-ink/60"
+                >
+                  Google Cal
+                </a>
+              ) : null}
+              {outlookUrl ? (
+                <a
+                  href={outlookUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-9 items-center rounded-md border border-rule bg-desk-deep px-2.5 py-1 font-semibold text-ink hover:border-ink/60"
+                >
+                  Outlook
+                </a>
+              ) : null}
+              <a
+                href={icsUrl}
+                download
+                className="inline-flex min-h-9 items-center rounded-md border border-rule bg-desk-deep px-2.5 py-1 font-semibold text-ink hover:border-ink/60"
+              >
+                Apple / .ics
+              </a>
+            </div>
+          ) : null}
         </div>
 
         <RsvpControl
@@ -198,9 +286,30 @@ async function WeekContent({
           initialStatus={myRsvp}
           counts={rsvpCounts}
         />
+
+        {group.pot_enabled ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-rule bg-desk-deep/70 px-3.5 py-2.5 text-sm">
+            <span className="flex items-center gap-2 text-ink">
+              <Coffee aria-hidden className="size-4 shrink-0 text-pencil" />
+              <span>
+                <span className="font-semibold">Homework Jar:</span>{" "}
+                {group.pot_stake_text}
+                {unsettledPotCount > 0
+                  ? ` · ${unsettledPotCount} ${unsettledPotCount === 1 ? "iou" : "ious"} in the pot`
+                  : " · Pot is clean"}
+              </span>
+            </span>
+            <Link
+              href={`/g/${groupId}/crew#meetup-pot`}
+              className="font-semibold text-ink underline decoration-rule decoration-2 underline-offset-4 hover:decoration-ink"
+            >
+              View pot
+            </Link>
+          </div>
+        ) : null}
       </section>
 
-      {/* Homework links */}
+      {/* Homework links (with automatic book/media affiliate enrichment) */}
       <section aria-labelledby="homework-heading" className="space-y-2">
         <h2 id="homework-heading" className="text-lg font-semibold text-ink">
           Homework
@@ -215,6 +324,28 @@ async function WeekContent({
         </h2>
         <AvatarRow members={members} doneIds={doneIds} />
       </section>
+
+      {/* Weekly Pop Quiz ("Exam Your Friends" — Club Pass) */}
+      <WeekExamSection
+        groupId={groupId}
+        groupName={group.name}
+        roundId={round.id}
+        userId={userId}
+        isClubPass={group.plan_tier === "club_pass"}
+        questions={questions}
+        submissions={examSubmissions}
+        members={members}
+      />
+
+      {/* Pre-Meetup Study Margin Notes & Post-Meetup Takeaways (Free for all groups) */}
+      <WeekNotesSection
+        groupId={groupId}
+        roundId={round.id}
+        userId={userId}
+        members={members}
+        notes={notes}
+        isClubPass={group.plan_tier === "club_pass"}
+      />
     </div>
   );
 }

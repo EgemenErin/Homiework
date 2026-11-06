@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { CampusClubsDirectory } from "@/components/campus-directory";
 import { SimpleHeader } from "@/components/group-nav";
 import {
+  getCampusGroups,
   getMyContactMatches,
   getMyGroups,
   getMyProfile,
@@ -15,10 +17,11 @@ export const metadata: Metadata = {
 
 async function OnboardingContent() {
   await requireUser("/onboarding");
-  const [profile, groups, contactData] = await Promise.all([
+  const [profile, groups, contactData, campusClubs] = await Promise.all([
     getMyProfile(),
     getMyGroups(),
     getMyContactMatches(),
+    getCampusGroups(),
   ]);
   const backHref = groups[0] ? `/g/${groups[0].id}` : undefined;
 
@@ -26,12 +29,25 @@ async function OnboardingContent() {
     <div className="min-h-dvh bg-desk text-ink overflow-x-hidden">
       <SimpleHeader backHref={backHref} backLabel="Back to group" />
 
-      <main className="mx-auto max-w-[34rem] px-4 pt-6 pb-20">
+      <main className="mx-auto max-w-[34rem] space-y-10 px-4 pt-6 pb-20">
         <OnboardingWizard
           profile={profile}
           initialMatches={contactData.matches}
           initialContactsCount={contactData.contactsCount}
         />
+
+        <section
+          aria-labelledby="onboarding-campus-heading"
+          className="space-y-3 border-t border-rule pt-8"
+        >
+          <h2
+            id="onboarding-campus-heading"
+            className="font-serif text-2xl text-ink"
+          >
+            Join a University Club
+          </h2>
+          <CampusClubsDirectory initialClubs={campusClubs} />
+        </section>
       </main>
     </div>
   );

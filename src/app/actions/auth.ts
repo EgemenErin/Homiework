@@ -275,6 +275,7 @@ export async function verifyCode(_prev: LoginState, formData: FormData): Promise
     }
 
     // Check server-side OTP inbox (used for test numbers or when external SMS provider is not attached)
+    let phoneFallbackSignedIn = false;
     try {
       const admin = isLocalDemoMode()
         ? await createLocalDemoClient(true)
@@ -298,13 +299,14 @@ export async function verifyCode(_prev: LoginState, formData: FormData): Promise
         if (otpRow) {
           await admin.from("auth_otp_codes").delete().eq("target", phone);
         }
-        const signedIn = await signInWithAdminToken(supabase, { phone });
-        if (signedIn) {
-          redirect(next);
-        }
+        phoneFallbackSignedIn = await signInWithAdminToken(supabase, { phone });
       }
     } catch (err) {
       console.error("[auth] phone fallback verify", err);
+    }
+
+    if (phoneFallbackSignedIn) {
+      redirect(next);
     }
 
     return {
@@ -329,6 +331,7 @@ export async function verifyCode(_prev: LoginState, formData: FormData): Promise
     redirect(next);
   }
 
+  let emailFallbackSignedIn = false;
   try {
     const admin = isLocalDemoMode()
       ? await createLocalDemoClient(true)
@@ -352,13 +355,14 @@ export async function verifyCode(_prev: LoginState, formData: FormData): Promise
       if (otpRow) {
         await admin.from("auth_otp_codes").delete().eq("target", email);
       }
-      const signedIn = await signInWithAdminToken(supabase, { email });
-      if (signedIn) {
-        redirect(next);
-      }
+      emailFallbackSignedIn = await signInWithAdminToken(supabase, { email });
     }
   } catch (err) {
     console.error("[auth] email fallback verify", err);
+  }
+
+  if (emailFallbackSignedIn) {
+    redirect(next);
   }
 
   return {

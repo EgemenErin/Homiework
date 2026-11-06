@@ -26,9 +26,38 @@ type LocalDb = {
   notifications_sent: Tables<"notifications_sent">[];
   user_contacts: Tables<"user_contacts">[];
   auth_otp_codes: Tables<"auth_otp_codes">[];
+  round_notes: Tables<"round_notes">[];
+  round_questions: Tables<"round_questions">[];
+  round_exam_submissions: Tables<"round_exam_submissions">[];
+  pot_entries: Tables<"pot_entries">[];
 };
 
 const DB_PATH = path.join(process.cwd(), ".local-db.json");
+
+function normalizeGroup(g: Partial<Tables<"groups">> & { id: string; name: string }): Tables<"groups"> {
+  return {
+    id: g.id,
+    name: g.name,
+    invite_code: g.invite_code ?? "homies2026",
+    meet_weekday: g.meet_weekday ?? 4,
+    meet_time: g.meet_time ?? "19:00",
+    timezone: g.timezone ?? "Europe/Berlin",
+    created_by: g.created_by ?? null,
+    created_at: g.created_at ?? new Date().toISOString(),
+    plan_tier: g.plan_tier ?? "free",
+    paper_theme: g.paper_theme ?? "classic",
+    stamp_style: g.stamp_style ?? "classic_due",
+    stamp_motto: g.stamp_motto ?? "",
+    active_pack_id: g.active_pack_id ?? null,
+    active_pack_week: g.active_pack_week ?? 1,
+    unlocked_packs: g.unlocked_packs ?? [],
+    discord_webhook_url: g.discord_webhook_url ?? null,
+    pot_enabled: g.pot_enabled ?? false,
+    pot_stake_text: g.pot_stake_text ?? "$3 to the Thursday Coffee/Beer Pot",
+    university_name: g.university_name ?? null,
+    is_campus_public: g.is_campus_public ?? false,
+  };
+}
 
 function seedDb(): LocalDb {
   const now = Date.now();
@@ -42,6 +71,7 @@ function seedDb(): LocalDb {
   const uAylin = "44444444-4444-4444-4444-444444444444";
   const uSelin = "55555555-5555-5555-5555-555555555555";
   const gHomies = "aaaaaaaa-0000-0000-0000-000000000001";
+  const gCampus = "aaaaaaaa-0000-0000-0000-000000000002";
   const r1 = "bbbbbbbb-0000-0000-0000-000000000001";
   const r2 = "bbbbbbbb-0000-0000-0000-000000000002";
   const r3 = "bbbbbbbb-0000-0000-0000-000000000003";
@@ -62,6 +92,7 @@ function seedDb(): LocalDb {
         id: uEge,
         display_name: "Ege",
         avatar_color: "ink",
+        avatar_url: null,
         phone: "+15550101001",
         email: "ege@homiework.test",
         topics: ["history", "economics"],
@@ -76,6 +107,7 @@ function seedDb(): LocalDb {
         id: uMert,
         display_name: "Mert",
         avatar_color: "red",
+        avatar_url: null,
         phone: "+15550101002",
         email: "mert@homiework.test",
         topics: ["history", "politics"],
@@ -90,6 +122,7 @@ function seedDb(): LocalDb {
         id: uKerem,
         display_name: "Kerem",
         avatar_color: "green",
+        avatar_url: null,
         phone: "+15550101003",
         email: "kerem@homiework.test",
         topics: ["economics", "tech"],
@@ -104,6 +137,7 @@ function seedDb(): LocalDb {
         id: uAylin,
         display_name: "Aylin",
         avatar_color: "plum",
+        avatar_url: null,
         phone: "+15550101004",
         email: "aylin@homiework.test",
         topics: ["science", "psychology"],
@@ -118,6 +152,7 @@ function seedDb(): LocalDb {
         id: uSelin,
         display_name: "Selin",
         avatar_color: "ochre",
+        avatar_url: null,
         phone: "+15550101005",
         email: "selin@homiework.test",
         topics: ["art", "psychology"],
@@ -130,7 +165,7 @@ function seedDb(): LocalDb {
       },
     ],
     groups: [
-      {
+      normalizeGroup({
         id: gHomies,
         name: "The Homies",
         invite_code: "homies2026",
@@ -139,7 +174,23 @@ function seedDb(): LocalDb {
         timezone: "Europe/Berlin",
         created_by: uEge,
         created_at: iso(-30 * day),
-      },
+        pot_enabled: true,
+        pot_stake_text: "$3 to the Thursday Coffee/Beer Pot",
+        university_name: "TU Berlin",
+        is_campus_public: false,
+      }),
+      normalizeGroup({
+        id: gCampus,
+        name: "TU Berlin Urbanism & Economics Society",
+        invite_code: "tuberlin26",
+        meet_weekday: 3,
+        meet_time: "18:30",
+        timezone: "Europe/Berlin",
+        created_by: uMert,
+        created_at: iso(-20 * day),
+        university_name: "TU Berlin",
+        is_campus_public: true,
+      }),
     ],
     group_members: [
       { group_id: gHomies, user_id: uEge, role: "owner", rotation_position: 0, joined_at: iso(-30 * day) },
@@ -147,6 +198,8 @@ function seedDb(): LocalDb {
       { group_id: gHomies, user_id: uKerem, role: "member", rotation_position: 2, joined_at: iso(-29 * day) },
       { group_id: gHomies, user_id: uAylin, role: "member", rotation_position: 3, joined_at: iso(-28 * day) },
       { group_id: gHomies, user_id: uSelin, role: "member", rotation_position: 4, joined_at: iso(-28 * day) },
+      { group_id: gCampus, user_id: uMert, role: "owner", rotation_position: 0, joined_at: iso(-20 * day) },
+      { group_id: gCampus, user_id: uAylin, role: "member", rotation_position: 1, joined_at: iso(-19 * day) },
     ],
     rounds: [
       {
@@ -214,10 +267,10 @@ function seedDb(): LocalDb {
       {
         id: "dddddddd-0000-0000-0000-000000000003",
         round_id: r3,
-        url: "https://www.youtube.com/results?search_query=how+the+fed+sets+interest+rates",
-        label: "How the Fed steers rates, explained",
-        kind: "watch",
-        minutes: 14,
+        url: "https://bookshop.org/p/books/lords-of-easy-money-christopher-leonard/17213305",
+        label: "Lords of Easy Money (Chapter 1 excerpt)",
+        kind: "read",
+        minutes: 18,
         sort: 2,
       },
     ],
@@ -290,6 +343,92 @@ function seedDb(): LocalDb {
     notifications_sent: [],
     user_contacts: [],
     auth_otp_codes: [],
+    round_notes: [
+      {
+        round_id: r1,
+        user_id: uEge,
+        pre_study_note: "REM sleep literally paralyzes your motor cortex while your visual cortex fires harder than when you're awake.",
+        post_meetup_note: "Mert confessed he tried lucid dreaming for two months in college and just got sleep paralysis.",
+        updated_at: iso(-17 * day),
+      },
+      {
+        round_id: r2,
+        user_id: uMert,
+        pre_study_note: "Sulla marching on Rome in 88 BC broke the unspoken taboo—once legions were loyal to generals' land promises over the Senate, it was over.",
+        post_meetup_note: "We ended up drawing a timeline on two café napkins. Unanimous agreement that the Gracchi brothers started the domino effect.",
+        updated_at: iso(-10 * day),
+      },
+      {
+        round_id: r3,
+        user_id: uKerem,
+        pre_study_note: "The Fed doesn't actually set mortgage rates directly—they set the overnight rate on bank reserves and the rest ripples out.",
+        post_meetup_note: "",
+        updated_at: iso(-1 * day),
+      },
+      {
+        round_id: r3,
+        user_id: uAylin,
+        pre_study_note: "Wild that only 5 of the 12 regional Fed presidents get to vote at any given FOMC meeting (except New York, who always votes).",
+        post_meetup_note: "",
+        updated_at: iso(-18 * 3_600_000),
+      },
+    ],
+    round_questions: [
+      {
+        id: "eeeeeeee-0000-0000-0000-000000000001",
+        round_id: r3,
+        prompt: "How many voting members sit on the Federal Open Market Committee (FOMC) at a time?",
+        options: ["7 Governors only", "12 (7 Governors + 5 regional presidents)", "50 (one per state)", "Appointed solely by the Treasury Secretary"],
+        correct_index: 1,
+        sort: 0,
+      },
+      {
+        id: "eeeeeeee-0000-0000-0000-000000000002",
+        round_id: r3,
+        prompt: "Which regional Federal Reserve Bank president holds a permanent voting seat on the FOMC?",
+        options: ["San Francisco", "Chicago", "New York", "Boston"],
+        correct_index: 2,
+        sort: 1,
+      },
+      {
+        id: "eeeeeeee-0000-0000-0000-000000000003",
+        round_id: r3,
+        prompt: "What is the primary overnight interest rate the FOMC targets?",
+        options: ["The 30-Year Treasury Yield", "The Federal Funds Rate", "The Consumer Price Index", "The Prime Mortgage Rate"],
+        correct_index: 1,
+        sort: 2,
+      },
+    ],
+    round_exam_submissions: [
+      {
+        round_id: r3,
+        user_id: uAylin,
+        answers: [1, 2, 1],
+        score: 3,
+        total: 3,
+        submitted_at: iso(-16 * 3_600_000),
+      },
+    ],
+    pot_entries: [
+      {
+        id: "ffffffff-0000-0000-0000-000000000001",
+        group_id: gHomies,
+        round_id: r1,
+        user_id: uKerem,
+        reason: "Attended Week 1 meetup without checking in on the homework",
+        settled: false,
+        created_at: iso(-17 * day),
+      },
+      {
+        id: "ffffffff-0000-0000-0000-000000000002",
+        group_id: gHomies,
+        round_id: r2,
+        user_id: uSelin,
+        reason: "Attended Week 2 meetup without checking in on the homework",
+        settled: false,
+        created_at: iso(-10 * day),
+      },
+    ],
   };
 }
 
@@ -299,6 +438,11 @@ function readDb(): LocalDb {
       const parsed = JSON.parse(fs.readFileSync(DB_PATH, "utf8")) as LocalDb;
       parsed.user_contacts ??= [];
       parsed.auth_otp_codes ??= [];
+      parsed.round_notes ??= [];
+      parsed.round_questions ??= [];
+      parsed.round_exam_submissions ??= [];
+      parsed.pot_entries ??= [];
+      parsed.groups = (parsed.groups ?? []).map((g) => normalizeGroup(g));
       return parsed;
     }
   } catch {
@@ -311,6 +455,49 @@ function readDb(): LocalDb {
 
 function writeDb(db: LocalDb) {
   fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+}
+
+/**
+ * Merges a group row from Supabase with local overlay fields so new columns
+ * (plan_tier, paper_theme, stamp_style, pot_enabled, pot_stake_text, etc.)
+ * are always defined even before the remote DB migration is applied.
+ */
+export function mergeGroupOverlay(
+  remoteGroup: Partial<Tables<"groups">> & { id: string; name: string },
+): Tables<"groups"> {
+  const db = readDb();
+  const local = db.groups.find((g) => g.id === remoteGroup.id);
+  const definedRemote = Object.fromEntries(
+    Object.entries(remoteGroup).filter(([, v]) => v !== undefined),
+  ) as Partial<Tables<"groups">>;
+  return normalizeGroup({
+    ...local,
+    ...definedRemote,
+    id: remoteGroup.id,
+    name: remoteGroup.name,
+  });
+}
+
+export function updateGroupOverlay(
+  groupId: string,
+  patch: Partial<Tables<"groups">>,
+  fallbackName = "Study Group",
+): Tables<"groups"> {
+  const db = readDb();
+  const idx = db.groups.findIndex((g) => g.id === groupId);
+  if (idx >= 0) {
+    db.groups[idx] = normalizeGroup({ ...db.groups[idx], ...patch });
+    writeDb(db);
+    return db.groups[idx];
+  }
+  const created = normalizeGroup({
+    id: groupId,
+    name: fallbackName,
+    ...patch,
+  });
+  db.groups.push(created);
+  writeDb(db);
+  return created;
 }
 
 export function isLocalDemoMode() {
@@ -402,6 +589,7 @@ export async function createLocalDemoClient(asAdmin = false) {
         id: p.id,
         display_name: p.display_name,
         avatar_color: p.avatar_color,
+        avatar_url: p.avatar_url ?? null,
       };
     }
     if (table === "rounds" && selectStr.includes("groups!inner")) {
@@ -428,11 +616,15 @@ export async function createLocalDemoClient(asAdmin = false) {
       case "group_members":
       case "rounds":
       case "suggestions":
+      case "pot_entries":
         return isMember(db, String(row.group_id));
       case "resources":
       case "rsvps":
       case "checkins":
-      case "attendance": {
+      case "attendance":
+      case "round_notes":
+      case "round_questions":
+      case "round_exam_submissions": {
         const round = db.rounds.find((r) => r.id === row.round_id);
         return Boolean(round && isMember(db, round.group_id));
       }
@@ -482,15 +674,24 @@ export async function createLocalDemoClient(asAdmin = false) {
             ...(table === "suggestions" ||
             table === "resources" ||
             table === "push_subscriptions" ||
-            table === "user_contacts"
+            table === "user_contacts" ||
+            table === "round_questions" ||
+            table === "pot_entries"
               ? { id: (item.id as string) ?? randomUUID() }
               : {}),
             ...(table === "suggestions" ||
             table === "push_subscriptions" ||
             table === "user_contacts" ||
             table === "auth_otp_codes" ||
-            table === "profiles"
+            table === "profiles" ||
+            table === "pot_entries"
               ? { created_at: new Date().toISOString() }
+              : {}),
+            ...(table === "round_notes"
+              ? { updated_at: new Date().toISOString() }
+              : {}),
+            ...(table === "round_exam_submissions"
+              ? { submitted_at: new Date().toISOString() }
               : {}),
             ...(table === "checkins" ? { done_at: new Date().toISOString() } : {}),
             ...(table === "notifications_sent"
@@ -510,7 +711,11 @@ export async function createLocalDemoClient(asAdmin = false) {
       if (op === "upsert") {
         const item = payload as Record<string, unknown>;
         const keyCols =
-          table === "rsvps" || table === "checkins" || table === "attendance"
+          table === "rsvps" ||
+          table === "checkins" ||
+          table === "attendance" ||
+          table === "round_notes" ||
+          table === "round_exam_submissions"
             ? ["round_id", "user_id"]
             : table === "suggestion_votes"
               ? ["suggestion_id", "user_id"]
@@ -521,10 +726,29 @@ export async function createLocalDemoClient(asAdmin = false) {
           keyCols.every((k) => r[k] === item[k]),
         );
         if (existingIdx >= 0) {
-          collection[existingIdx] = { ...collection[existingIdx], ...item };
+          collection[existingIdx] = {
+            ...collection[existingIdx],
+            ...item,
+            ...(table === "round_notes"
+              ? { updated_at: new Date().toISOString() }
+              : {}),
+            ...(table === "round_exam_submissions"
+              ? { submitted_at: new Date().toISOString() }
+              : {}),
+          };
         } else {
           collection.push({
             ...(table === "checkins" ? { done_at: new Date().toISOString() } : {}),
+            ...(table === "round_notes"
+              ? {
+                  pre_study_note: "",
+                  post_meetup_note: "",
+                  updated_at: new Date().toISOString(),
+                }
+              : {}),
+            ...(table === "round_exam_submissions"
+              ? { submitted_at: new Date().toISOString() }
+              : {}),
             ...item,
           });
         }
@@ -695,6 +919,7 @@ export async function createLocalDemoClient(asAdmin = false) {
               id: u.id,
               display_name: "",
               avatar_color: "ink",
+              avatar_url: null,
               phone: cleanPhone,
               email: u.email,
               topics: [],
@@ -718,6 +943,7 @@ export async function createLocalDemoClient(asAdmin = false) {
             id: u.id,
             display_name: "",
             avatar_color: "ink",
+            avatar_url: null,
             phone: null,
             email: clean,
             topics: [],
@@ -758,6 +984,7 @@ export async function createLocalDemoClient(asAdmin = false) {
               id: u.id,
               display_name: "",
               avatar_color: "ink",
+              avatar_url: null,
               phone: cleanPhone,
               email: u.email,
               topics: [],
@@ -780,6 +1007,7 @@ export async function createLocalDemoClient(asAdmin = false) {
               id: u.id,
               display_name: "",
               avatar_color: "ink",
+              avatar_url: null,
               phone: null,
               email,
               topics: [],
@@ -837,16 +1065,18 @@ export async function createLocalDemoClient(asAdmin = false) {
         }
         const id = randomUUID();
         const invite_code = randomBytes(6).toString("hex");
-        db.groups.push({
-          id,
-          name: String(args.p_name).trim(),
-          invite_code,
-          meet_weekday: Number(args.p_weekday),
-          meet_time: String(args.p_time),
-          timezone: String(args.p_timezone || "UTC"),
-          created_by: currentUid,
-          created_at: new Date().toISOString(),
-        });
+        db.groups.push(
+          normalizeGroup({
+            id,
+            name: String(args.p_name).trim(),
+            invite_code,
+            meet_weekday: Number(args.p_weekday),
+            meet_time: String(args.p_time),
+            timezone: String(args.p_timezone || "UTC"),
+            created_by: currentUid,
+            created_at: new Date().toISOString(),
+          }),
+        );
         db.group_members.push({
           group_id: id,
           user_id: currentUid,
@@ -1011,6 +1241,35 @@ export async function createLocalDemoClient(asAdmin = false) {
             user_id: m.user_id,
             attended: attendedSet.has(m.user_id),
           });
+        }
+        const groupObj = db.groups.find((g) => g.id === round.group_id);
+        if (groupObj?.pot_enabled) {
+          const checkinSet = new Set(
+            db.checkins
+              .filter((c) => c.round_id === round.id)
+              .map((c) => c.user_id),
+          );
+          for (const m of members) {
+            if (attendedSet.has(m.user_id) && !checkinSet.has(m.user_id)) {
+              const exists = db.pot_entries.some(
+                (p) => p.round_id === round.id && p.user_id === m.user_id,
+              );
+              if (!exists) {
+                db.pot_entries.push({
+                  id: randomUUID(),
+                  group_id: round.group_id,
+                  round_id: round.id,
+                  user_id: m.user_id,
+                  reason: `Attended Week ${round.number} meetup without checking in on the homework`,
+                  settled: false,
+                  created_at: new Date().toISOString(),
+                });
+              }
+            }
+          }
+        }
+        if (groupObj?.active_pack_id) {
+          groupObj.active_pack_week = (groupObj.active_pack_week ?? 1) + 1;
         }
         round.status = "closed";
         round.closed_at = new Date().toISOString();
@@ -1185,6 +1444,35 @@ export async function createLocalDemoClient(asAdmin = false) {
             ),
           });
         }
+        return { data: out, error: null };
+      }
+
+      if (fn === "find_campus_groups") {
+        const q = String(args.p_query ?? "").trim().toLowerCase();
+        const publicCampus = db.groups.filter((g) => {
+          if (!g.is_campus_public || !g.university_name?.trim()) return false;
+          if (!q) return true;
+          return (
+            g.university_name.toLowerCase().includes(q) ||
+            g.name.toLowerCase().includes(q)
+          );
+        });
+        const out = publicCampus.map((g) => {
+          const members = db.group_members.filter((m) => m.group_id === g.id);
+          return {
+            group_id: g.id,
+            group_name: g.name,
+            university_name: g.university_name ?? "",
+            invite_code: g.invite_code,
+            meet_weekday: g.meet_weekday,
+            meet_time: g.meet_time,
+            timezone: g.timezone,
+            member_count: members.length,
+            already_member: Boolean(
+              currentUid && members.some((m) => m.user_id === currentUid),
+            ),
+          };
+        });
         return { data: out, error: null };
       }
 

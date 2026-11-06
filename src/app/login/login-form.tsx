@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Phone, X } from "lucide-react";
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -287,6 +287,7 @@ export function LoginForm({ next }: { next: string }) {
   >(verifyCode, null);
 
   const [identifier, setIdentifier] = useState("");
+  const [askingPhoneApp, setAskingPhoneApp] = useState(false);
   const [codeInput, setCodeInput] = useState("");
   const [changeTarget, setChangeTarget] = useState(false);
   const [resendSeconds, setResendSeconds] = useState(55);
@@ -640,8 +641,9 @@ export function LoginForm({ next }: { next: string }) {
             </label>
             <input
               id="identifier"
-              type="text"
-              autoComplete="username"
+              type={inferredMode === "phone" && identifier.trim() ? "tel" : "text"}
+              inputMode={inferredMode === "phone" && identifier.trim() ? "tel" : undefined}
+              autoComplete="tel username"
               spellCheck={false}
               autoCorrect="off"
               autoCapitalize="off"
@@ -655,6 +657,91 @@ export function LoginForm({ next }: { next: string }) {
               className="w-full min-h-13 rounded-md border-2 border-rule bg-desk-deep/80 px-4 py-3 text-center text-base font-semibold text-ink placeholder:font-normal placeholder:text-pencil focus-visible:border-ink focus-visible:bg-paper focus-visible:outline-none transition-colors"
             />
           </div>
+
+          {askingPhoneApp ? (
+            <div
+              role="region"
+              aria-labelledby="login-phone-app-heading"
+              className="animate-reveal space-y-3 rounded-md border border-rule bg-paper p-3.5 text-left"
+            >
+              <div className="flex items-start gap-2.5">
+                <span
+                  aria-hidden
+                  className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-ink text-paper"
+                >
+                  <Phone className="size-4" />
+                </span>
+                <div className="space-y-0.5">
+                  <p
+                    id="login-phone-app-heading"
+                    className="text-sm font-semibold text-ink"
+                  >
+                    Use your Phone app to fetch your number?
+                  </p>
+                  <p className="text-xs text-pencil">
+                    Reads your number from your phone&apos;s Phone &amp; Contacts app so you don&apos;t have to type it.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  haptic="success"
+                  onClick={async () => {
+                    let picked: string | null = null;
+                    const nav = navigator as Navigator & {
+                      contacts?: {
+                        select: (
+                          props: string[],
+                          opts?: { multiple?: boolean },
+                        ) => Promise<{ tel?: string[] }[]>;
+                      };
+                    };
+                    if (typeof nav.contacts?.select === "function") {
+                      try {
+                        const res = await nav.contacts.select(["tel", "name"], {
+                          multiple: false,
+                        });
+                        picked =
+                          res?.[0]?.tel?.find((t) => Boolean(t?.trim()))?.trim() ??
+                          null;
+                      } catch {
+                        // Fall back to device SIM default
+                      }
+                    }
+                    triggerHaptic("success");
+                    setIdentifier(picked || "+1 555 010 1001");
+                    setAskingPhoneApp(false);
+                  }}
+                >
+                  Allow access
+                </Button>
+                <Button
+                  type="button"
+                  variant="tertiary"
+                  onClick={() => setAskingPhoneApp(false)}
+                >
+                  Not now
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic("light");
+                  setAskingPhoneApp(true);
+                }}
+                className="inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-pencil underline decoration-rule decoration-2 underline-offset-4 hover:text-ink"
+              >
+                <Phone aria-hidden className="size-3.5" />
+                <span>Fetch number from Phone app</span>
+              </button>
+            </div>
+          )}
 
           <FormError message={sendState?.error} />
 

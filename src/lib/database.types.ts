@@ -14,13 +14,14 @@ export type Database = {
           id: string;
           display_name: string;
           avatar_color: "ink" | "red" | "green" | "plum" | "ochre" | "teal";
+          avatar_url: string | null;
           phone: string | null;
           email: string | null;
           topics: string[];
-          study_pace: "short" | "deep" | "multimedia" | "mix" | null;
-          availability: "weeknights" | "weekend_morning" | "weekend_afternoon" | "flexible" | null;
+          study_pace: string | null;
+          availability: string | null;
           background: string;
-          referral_source: "friend" | "group_chat" | "campus" | "social" | "other" | null;
+          referral_source: string | null;
           survey_completed_at: string | null;
           created_at: string;
         };
@@ -28,13 +29,14 @@ export type Database = {
           id: string;
           display_name?: string;
           avatar_color?: "ink" | "red" | "green" | "plum" | "ochre" | "teal";
+          avatar_url?: string | null;
           phone?: string | null;
           email?: string | null;
           topics?: string[];
-          study_pace?: "short" | "deep" | "multimedia" | "mix" | null;
-          availability?: "weeknights" | "weekend_morning" | "weekend_afternoon" | "flexible" | null;
+          study_pace?: string | null;
+          availability?: string | null;
           background?: string;
-          referral_source?: "friend" | "group_chat" | "campus" | "social" | "other" | null;
+          referral_source?: string | null;
           survey_completed_at?: string | null;
           created_at?: string;
         };
@@ -42,13 +44,14 @@ export type Database = {
           id?: string;
           display_name?: string;
           avatar_color?: "ink" | "red" | "green" | "plum" | "ochre" | "teal";
+          avatar_url?: string | null;
           phone?: string | null;
           email?: string | null;
           topics?: string[];
-          study_pace?: "short" | "deep" | "multimedia" | "mix" | null;
-          availability?: "weeknights" | "weekend_morning" | "weekend_afternoon" | "flexible" | null;
+          study_pace?: string | null;
+          availability?: string | null;
           background?: string;
-          referral_source?: "friend" | "group_chat" | "campus" | "social" | "other" | null;
+          referral_source?: string | null;
           survey_completed_at?: string | null;
           created_at?: string;
         };
@@ -126,6 +129,23 @@ export type Database = {
           timezone: string;
           created_by: string | null;
           created_at: string;
+          plan_tier: "free" | "club_pass";
+          paper_theme: "classic" | "blueprint" | "manila" | "exam_blue";
+          stamp_style:
+            | "classic_due"
+            | "library_dater"
+            | "wax_seal"
+            | "classified"
+            | "dept_approved";
+          stamp_motto: string;
+          active_pack_id: string | null;
+          active_pack_week: number;
+          unlocked_packs: string[];
+          discord_webhook_url: string | null;
+          pot_enabled: boolean;
+          pot_stake_text: string;
+          university_name: string | null;
+          is_campus_public: boolean;
         };
         Insert: {
           id?: string;
@@ -136,6 +156,23 @@ export type Database = {
           timezone?: string;
           created_by?: string | null;
           created_at?: string;
+          plan_tier?: "free" | "club_pass";
+          paper_theme?: "classic" | "blueprint" | "manila" | "exam_blue";
+          stamp_style?:
+            | "classic_due"
+            | "library_dater"
+            | "wax_seal"
+            | "classified"
+            | "dept_approved";
+          stamp_motto?: string;
+          active_pack_id?: string | null;
+          active_pack_week?: number;
+          unlocked_packs?: string[];
+          discord_webhook_url?: string | null;
+          pot_enabled?: boolean;
+          pot_stake_text?: string;
+          university_name?: string | null;
+          is_campus_public?: boolean;
         };
         Update: {
           id?: string;
@@ -146,6 +183,23 @@ export type Database = {
           timezone?: string;
           created_by?: string | null;
           created_at?: string;
+          plan_tier?: "free" | "club_pass";
+          paper_theme?: "classic" | "blueprint" | "manila" | "exam_blue";
+          stamp_style?:
+            | "classic_due"
+            | "library_dater"
+            | "wax_seal"
+            | "classified"
+            | "dept_approved";
+          stamp_motto?: string;
+          active_pack_id?: string | null;
+          active_pack_week?: number;
+          unlocked_packs?: string[];
+          discord_webhook_url?: string | null;
+          pot_enabled?: boolean;
+          pot_stake_text?: string;
+          university_name?: string | null;
+          is_campus_public?: boolean;
         };
         Relationships: [];
       };
@@ -452,6 +506,114 @@ export type Database = {
         };
         Relationships: [];
       };
+      round_notes: {
+        Row: {
+          round_id: string;
+          user_id: string;
+          pre_study_note: string;
+          post_meetup_note: string;
+          updated_at: string;
+        };
+        Insert: {
+          round_id: string;
+          user_id: string;
+          pre_study_note?: string;
+          post_meetup_note?: string;
+          updated_at?: string;
+        };
+        Update: {
+          round_id?: string;
+          user_id?: string;
+          pre_study_note?: string;
+          post_meetup_note?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      round_questions: {
+        Row: {
+          id: string;
+          round_id: string;
+          prompt: string;
+          options: string[];
+          correct_index: number;
+          sort: number;
+        };
+        Insert: {
+          id?: string;
+          round_id: string;
+          prompt: string;
+          options: string[];
+          correct_index: number;
+          sort?: number;
+        };
+        Update: {
+          id?: string;
+          round_id?: string;
+          prompt?: string;
+          options?: string[];
+          correct_index?: number;
+          sort?: number;
+        };
+        Relationships: [];
+      };
+      round_exam_submissions: {
+        Row: {
+          round_id: string;
+          user_id: string;
+          answers: number[];
+          score: number;
+          total: number;
+          submitted_at: string;
+        };
+        Insert: {
+          round_id: string;
+          user_id: string;
+          answers: number[];
+          score: number;
+          total: number;
+          submitted_at?: string;
+        };
+        Update: {
+          round_id?: string;
+          user_id?: string;
+          answers?: number[];
+          score?: number;
+          total?: number;
+          submitted_at?: string;
+        };
+        Relationships: [];
+      };
+      pot_entries: {
+        Row: {
+          id: string;
+          group_id: string;
+          round_id: string | null;
+          user_id: string;
+          reason: string;
+          settled: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          group_id: string;
+          round_id?: string | null;
+          user_id: string;
+          reason?: string;
+          settled?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          group_id?: string;
+          round_id?: string | null;
+          user_id?: string;
+          reason?: string;
+          settled?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -514,6 +676,20 @@ export type Database = {
           timezone: string;
           member_count: number;
           matched_friends: string[];
+          already_member: boolean;
+        }[];
+      };
+      find_campus_groups: {
+        Args: { p_query?: string };
+        Returns: {
+          group_id: string;
+          group_name: string;
+          university_name: string;
+          invite_code: string;
+          meet_weekday: number;
+          meet_time: string;
+          timezone: string;
+          member_count: number;
           already_member: boolean;
         }[];
       };

@@ -20,6 +20,21 @@ const VALID_TOPICS = [
   "politics",
 ] as const;
 
+const VALID_PACES = ["short", "deep", "multimedia", "mix"] as const;
+const VALID_AVAILABILITIES = [
+  "weeknights",
+  "weekend_morning",
+  "weekend_afternoon",
+  "flexible",
+] as const;
+const VALID_REFERRALS = [
+  "friend",
+  "group_chat",
+  "campus",
+  "social",
+  "other",
+] as const;
+
 const profileSchema = z.object({
   display_name: z
     .string()
@@ -31,24 +46,18 @@ const profileSchema = z.object({
 
 const surveySchema = z.object({
   topics: z.array(z.enum(VALID_TOPICS)).default([]),
-  study_pace: z
-    .enum(["short", "deep", "multimedia", "mix"])
-    .nullable()
-    .optional(),
-  availability: z
-    .enum(["weeknights", "weekend_morning", "weekend_afternoon", "flexible"])
-    .nullable()
-    .optional(),
+  study_pace: z.array(z.enum(VALID_PACES)).default([]),
+  availability: z.array(z.enum(VALID_AVAILABILITIES)).default([]),
   background: z
     .string()
     .trim()
     .max(120, "Keep it under 120 characters.")
     .default(""),
-  referral_source: z
-    .enum(["friend", "group_chat", "campus", "social", "other"])
-    .nullable()
-    .optional(),
+  referral_source: z.array(z.enum(VALID_REFERRALS)).default([]),
 });
+
+const VALID_AVATAR_URL_RE =
+  /^(data:image\/(jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=]+|https?:\/\/\S+|\/\S+)$/i;
 
 export async function saveProfile(
   _prev: ActionState,
@@ -61,6 +70,25 @@ export async function saveProfile(
   });
   if (!parsed.success) {
     return { fieldErrors: zodFieldErrors(parsed.error.issues) };
+  }
+
+  let avatar_url: string | null | undefined = undefined;
+  if (formData.has("avatar_url")) {
+    const rawAvatar = String(formData.get("avatar_url") ?? "").trim();
+    if (!rawAvatar) {
+      avatar_url = null;
+    } else if (
+      rawAvatar.length > 250_000 ||
+      !VALID_AVATAR_URL_RE.test(rawAvatar)
+    ) {
+      return {
+        fieldErrors: {
+          avatar_url: "Choose a valid photo (JPEG, PNG, WebP, or GIF).",
+        },
+      };
+    } else {
+      avatar_url = rawAvatar;
+    }
   }
 
   const rawPhone = String(formData.get("phone") ?? "").trim();
@@ -85,33 +113,77 @@ export async function saveProfile(
   let surveyPatch: Record<string, unknown> = {};
 
   if (includeSurvey) {
-    const rawTopics = formData
-      .getAll("topics")
-      .map((t) => String(t))
-      .filter((t): t is (typeof VALID_TOPICS)[number] =>
-        (VALID_TOPICS as readonly string[]).includes(t),
-      );
-    const rawPace = String(formData.get("study_pace") ?? "").trim() || null;
-    const rawAvail = String(formData.get("availability") ?? "").trim() || null;
+    const rawTopics = Array.from(
+      new Set(
+        formData
+          .getAll("topics")
+          .flatMap((t) => String(t).split(","))
+          .map((t) => t.trim())
+          .filter((t): t is (typeof VALID_TOPICS)[number] =>
+            (VALID_TOPICS as readonly string[]).includes(t),
+          ),
+      ),
+    );
+    const rawPaces = Array.from(
+      new Set(
+        formData
+          .getAll("study_pace")
+          .flatMap((v) => String(v).split(","))
+          .map((v) => v.trim())
+          .filter((v): v is (typeof VALID_PACES)[number] =>
+            (VALID_PACES as readonly string[]).includes(v),
+          ),
+      ),
+    );
+    const rawAvails = Array.from(
+      new Set(
+        formData
+          .getAll("availability")
+          .flatMap((v) => String(v).split(","))
+          .map((v) => v.trim())
+          .filter((v): v is (typeof VALID_AVAILABILITIES)[number] =>
+            (VALID_AVAILABILITIES as readonly string[]).includes(v),
+          ),
+      ),
+    );
     const rawBg = String(formData.get("background") ?? "").trim();
-    const rawRef = String(formData.get("referral_source") ?? "").trim() || null;
+    const rawRefs = Array.from(
+      new Set(
+        formData
+          .getAll("referral_source")
+          .flatMap((v) => String(v).split(","))
+          .map((v) => v.trim())
+          .filter((v): v is (typeof VALID_REFERRALS)[number] =>
+            (VALID_REFERRALS as readonly string[]).includes(v),
+          ),
+      ),
+    );
 
     const surveyParsed = surveySchema.safeParse({
       topics: rawTopics,
-      study_pace: rawPace,
-      availability: rawAvail,
+      study_pace: rawPaces,
+      availability: rawAvails,
       background: rawBg,
-      referral_source: rawRef,
+      referral_source: rawRefs,
     });
     if (!surveyParsed.success) {
       return { fieldErrors: zodFieldErrors(surveyParsed.error.issues) };
     }
     surveyPatch = {
       topics: surveyParsed.data.topics,
-      study_pace: surveyParsed.data.study_pace ?? null,
-      availability: surveyParsed.data.availability ?? null,
+      study_pace:
+        surveyParsed.data.study_pace.length > 0
+          ? surveyParsed.data.study_pace.join(",")
+          : null,
+      availability:
+        surveyParsed.data.availability.length > 0
+          ? surveyParsed.data.availability.join(",")
+          : null,
       background: surveyParsed.data.background,
-      referral_source: surveyParsed.data.referral_source ?? null,
+      referral_source:
+        surveyParsed.data.referral_source.length > 0
+          ? surveyParsed.data.referral_source.join(",")
+          : null,
       survey_completed_at: new Date().toISOString(),
     };
   }
@@ -119,6 +191,7 @@ export async function saveProfile(
   const supabase = await createClient();
   const updatePayload = {
     ...parsed.data,
+    ...(avatar_url !== undefined ? { avatar_url } : {}),
     ...(phone !== undefined ? { phone } : {}),
     ...surveyPatch,
   };
@@ -131,6 +204,27 @@ export async function saveProfile(
 
   const next = formData.get("next");
   if (next) redirect(safeNext(next));
+  refresh();
+  return { ok: true };
+}
+
+export async function saveProfilePhoto(
+  avatarUrl: string | null,
+): Promise<{ ok?: boolean; error?: string }> {
+  const user = await requireUser();
+  const trimmed = avatarUrl?.trim() || null;
+  if (
+    trimmed &&
+    (trimmed.length > 250_000 || !VALID_AVATAR_URL_RE.test(trimmed))
+  ) {
+    return { error: "Choose a valid photo (JPEG, PNG, WebP, or GIF)." };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ avatar_url: trimmed })
+    .eq("id", user.id);
+  if (error) return { error: dbError(error) };
   refresh();
   return { ok: true };
 }
@@ -156,13 +250,33 @@ const APP_DIRECTORY_CONTACTS: RawContactEntry[] = [
   { name: "Selin", phone: "+15550101005", email: "selin@homiework.test" },
 ];
 
-export async function fetchPhoneFromApp(): Promise<{
+export async function fetchPhoneFromApp(
+  clientDevicePhone?: string | null,
+): Promise<{
   ok?: boolean;
   phone?: string;
   error?: string;
 }> {
   const user = await requireUser();
   const supabase = await createClient();
+
+  const cleanedDevicePhone = clientDevicePhone?.trim() || null;
+  if (cleanedDevicePhone) {
+    const normalizedDevice = await normalizePhoneInput(cleanedDevicePhone);
+    if (!normalizedDevice) {
+      return {
+        error:
+          "Enter a valid phone number with country code, like +1 555 010 1001.",
+      };
+    }
+    const { error } = await supabase
+      .from("profiles")
+      .update({ phone: normalizedDevice })
+      .eq("id", user.id);
+    if (error) return { error: dbError(error) };
+    refresh();
+    return { ok: true, phone: normalizedDevice };
+  }
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -206,7 +320,11 @@ export async function syncContactsForGroups(
   const user = await requireUser();
   const supabase = await createClient();
 
-  const phoneRes = await fetchPhoneFromApp();
+  const rawDevicePhone = String(formData.get("device_phone") ?? "").trim();
+  const phoneRes = await fetchPhoneFromApp(rawDevicePhone || null);
+  if (phoneRes.error) {
+    return { error: phoneRes.error };
+  }
   const fetchedPhone = phoneRes.phone ?? null;
 
   const entries: RawContactEntry[] = [];

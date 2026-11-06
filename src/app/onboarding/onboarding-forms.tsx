@@ -4,7 +4,9 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  Camera,
   Check,
+  Phone,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -12,9 +14,11 @@ import Link from "next/link";
 import {
   useActionState,
   useEffect,
+  useId,
   useRef,
   useState,
   useTransition,
+  type ChangeEvent,
   type TouchEvent,
 } from "react";
 import { flushSync } from "react-dom";
@@ -23,6 +27,7 @@ import {
   clearSavedContacts,
   fetchPhoneFromApp,
   saveProfile,
+  saveProfilePhoto,
   syncContactsForGroups,
   type ContactSyncState,
 } from "@/app/actions/profile";
@@ -143,6 +148,202 @@ function runDirectionalTransition(
   }
 }
 
+type ContactPickerNavigator = Navigator & {
+  contacts?: {
+    select: (
+      properties: string[],
+      options?: { multiple?: boolean },
+    ) => Promise<{ name?: string[]; tel?: string[]; email?: string[] }[]>;
+  };
+};
+
+async function readImageFileAsCroppedDataUrl(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Choose a JPEG, PNG, WebP, or GIF image.");
+  }
+  if (file.size > 12 * 1024 * 1024) {
+    throw new Error("Choose an image smaller than 12 MB.");
+  }
+
+  const rawDataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("Could not read that image."));
+    reader.readAsDataURL(file);
+  });
+
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new window.Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("Could not decode that image."));
+      el.src = rawDataUrl;
+    });
+
+    const targetSize = 224;
+    const canvas = document.createElement("canvas");
+    canvas.width = targetSize;
+    canvas.height = targetSize;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return rawDataUrl;
+
+    const minSide = Math.min(img.naturalWidth || targetSize, img.naturalHeight || targetSize);
+    const sx = Math.max(0, ((img.naturalWidth || targetSize) - minSide) / 2);
+    const sy = Math.max(0, ((img.naturalHeight || targetSize) - minSide) / 2);
+
+    ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, targetSize, targetSize);
+
+    const webp = canvas.toDataURL("image/webp", 0.84);
+    if (webp.startsWith("data:image/webp") && webp.length <= 240_000) {
+      return webp;
+    }
+    const jpeg = canvas.toDataURL("image/jpeg", 0.84);
+    if (jpeg.length <= 240_000) {
+      return jpeg;
+    }
+  } catch {
+    // Fall back to raw data URL if canvas decoding fails in headless environments
+  }
+
+  if (rawDataUrl.length > 240_000) {
+    throw new Error("That photo is too large. Try a smaller image.");
+  }
+  return rawDataUrl;
+}
+
+function ProfilePhotoPicker({
+  name,
+  color,
+  avatarUrl,
+  onChangeAvatarUrl,
+  fieldError,
+}: {
+  name: string;
+  color: FullProfile["avatar_color"];
+  avatarUrl: string;
+  onChangeAvatarUrl: (next: string) => void;
+  fieldError?: string;
+}) {
+  const inputId = useId();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [isSavingPhoto, startPhotoSave] = useTransition();
+
+  async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setPhotoError(null);
+    try {
+      const croppedDataUrl = await readImageFileAsCroppedDataUrl(file);
+      triggerHaptic("success");
+      onChangeAvatarUrl(croppedDataUrl);
+      startPhotoSave(async () => {
+        const res = await saveProfilePhoto(croppedDataUrl);
+        if (res.error) setPhotoError(res.error);
+      });
+    } catch (err) {
+      triggerHaptic("error");
+      setPhotoError(
+        err instanceof Error ? err.message : "Could not upload that photo.",
+      );
+    }
+  }
+
+  function handleRemovePhoto() {
+    triggerHaptic("light");
+    setPhotoError(null);
+    onChangeAvatarUrl("");
+    startPhotoSave(async () => {
+      await saveProfilePhoto(null);
+    });
+  }
+
+  return (
+    <div className="space-y-2">
+      <input type="hidden" name="avatar_url" value={avatarUrl} />
+      <input
+        ref={fileInputRef}
+        id={inputId}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        onChange={handleFileChange}
+        className="sr-only"
+      />
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic("light");
+            fileInputRef.current?.click();
+          }}
+          aria-label={avatarUrl ? "Change profile picture" : "Upload profile picture"}
+          className="group relative inline-flex shrink-0 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink active:scale-95 transition-transform"
+        >
+          <div key={`${color}-${avatarUrl ? "photo" : "ink"}`} className="animate-chip-pop">
+            <Avatar
+              profile={{
+                display_name: name || "You",
+                avatar_color: color,
+                avatar_url: avatarUrl || null,
+              }}
+              size="lg"
+            />
+          </div>
+          <span
+            aria-hidden
+            className="absolute -right-0.5 -bottom-0.5 inline-flex size-6 items-center justify-center rounded-full border-2 border-desk bg-ink text-paper shadow-2xs group-hover:bg-ink-soft"
+          >
+            <Camera className="size-3.5" />
+          </span>
+        </button>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            disabled={isSavingPhoto}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {isSavingPhoto
+              ? "Saving photo…"
+              : avatarUrl
+                ? "Change photo"
+                : "Upload photo"}
+          </Button>
+          {avatarUrl ? (
+            <Button
+              type="button"
+              variant="tertiary"
+              disabled={isSavingPhoto}
+              onClick={handleRemovePhoto}
+            >
+              Remove photo
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      <FormError message={photoError ?? fieldError} />
+    </div>
+  );
+}
+
+async function tryPickNumberFromPhoneApp(): Promise<string | null> {
+  if (typeof navigator === "undefined") return null;
+  const nav = navigator as ContactPickerNavigator;
+  if (typeof nav.contacts?.select !== "function") return null;
+  try {
+    const selected = await nav.contacts.select(["tel", "name"], {
+      multiple: false,
+    });
+    const firstTel = selected?.[0]?.tel?.find((t) => Boolean(t?.trim()));
+    return firstTel?.trim() ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function PhoneConsentField({
   phone,
   onChangePhone,
@@ -152,7 +353,9 @@ function PhoneConsentField({
   onChangePhone: (next: string) => void;
   fieldError?: string;
 }) {
+  const telAutofillId = useId();
   const [askingConsent, setAskingConsent] = useState(false);
+  const [deviceTelInput, setDeviceTelInput] = useState("");
   const [fetching, startFetch] = useTransition();
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -164,20 +367,24 @@ function PhoneConsentField({
         <span className="text-sm text-pencil">Optional</span>
       </div>
       <p className="text-sm text-pencil">
-        Lets friends who have your number in the app find your study group without manual typing.
+        Lets friends who have your number in their Phone contacts find your study group automatically.
       </p>
 
       {phone ? (
         <div className="animate-reveal flex flex-wrap items-center justify-between gap-3 rounded-md border border-rule bg-paper px-3.5 py-2.5">
           <span className="flex items-center gap-2 text-base font-semibold text-ink">
             <Check aria-hidden className="size-4 text-red stroke-[2.75]" />
-            {phone}
+            <span>{phone}</span>
+            <span className="text-xs font-normal text-pencil">
+              (from Phone app)
+            </span>
           </span>
           <Button
             type="button"
             variant="tertiary"
             onClick={() => {
               onChangePhone("");
+              setDeviceTelInput("");
               setAskingConsent(false);
             }}
           >
@@ -190,17 +397,46 @@ function PhoneConsentField({
           aria-labelledby="profile-phone-consent-heading"
           className="animate-reveal space-y-3 rounded-md border border-rule bg-paper p-4"
         >
-          <div className="space-y-1">
-            <p
-              id="profile-phone-consent-heading"
-              className="font-semibold text-ink"
+          <div className="flex items-start gap-3">
+            <span
+              aria-hidden
+              className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-ink text-paper"
             >
-              Allow Homiework to fetch your phone number from the app?
-            </p>
-            <p className="text-sm text-pencil">
-              Your number is only used to match you with friends&apos; study groups. You can disconnect it anytime.
-            </p>
+              <Phone className="size-4" />
+            </span>
+            <div className="space-y-1">
+              <p
+                id="profile-phone-consent-heading"
+                className="font-semibold text-ink"
+              >
+                Use your Phone app to fetch your number?
+              </p>
+              <p className="text-sm text-pencil">
+                Homiework will ask your phone&apos;s built-in Phone &amp; Contacts app for your number so friends can match with your study group.
+              </p>
+            </div>
           </div>
+
+          <div className="space-y-1.5 pt-1">
+            <label
+              htmlFor={telAutofillId}
+              className="block text-xs font-semibold text-pencil"
+            >
+              Tap below for your phone&apos;s &ldquo;My Number&rdquo; autofill, or tap Allow to fetch directly
+            </label>
+            <input
+              id={telAutofillId}
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              enterKeyHint="done"
+              value={deviceTelInput}
+              onChange={(e) => setDeviceTelInput(e.target.value)}
+              placeholder="Auto-fetch from Phone app (+1 555…)"
+              className={inputClass}
+            />
+          </div>
+
           <div className="flex flex-wrap items-center gap-3">
             <Button
               type="button"
@@ -211,7 +447,11 @@ function PhoneConsentField({
               onClick={() => {
                 setFetchError(null);
                 startFetch(async () => {
-                  const res = await fetchPhoneFromApp();
+                  let candidate = deviceTelInput.trim() || null;
+                  if (!candidate) {
+                    candidate = await tryPickNumberFromPhoneApp();
+                  }
+                  const res = await fetchPhoneFromApp(candidate);
                   if (res.error) {
                     triggerHaptic("error");
                     setFetchError(res.error);
@@ -225,7 +465,7 @@ function PhoneConsentField({
                 });
               }}
             >
-              {fetching ? "Fetching…" : "Allow access"}
+              {fetching ? "Fetching from Phone app…" : "Allow access"}
             </Button>
             <Button
               type="button"
@@ -245,7 +485,8 @@ function PhoneConsentField({
             size="md"
             onClick={() => setAskingConsent(true)}
           >
-            Fetch phone number from app
+            <Phone aria-hidden className="mr-2 size-4" />
+            Fetch number from Phone app
           </Button>
         </div>
       )}
@@ -253,6 +494,22 @@ function PhoneConsentField({
       <FormError message={fetchError ?? fieldError} />
     </div>
   );
+}
+
+function parseMultiValue(
+  raw: string | null | undefined,
+  fallback: string[] = [],
+): string[] {
+  if (!raw) return fallback;
+  const parts = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts : fallback;
+}
+
+function toggleInList(list: string[], val: string): string[] {
+  return list.includes(val) ? list.filter((x) => x !== val) : [...list, val];
 }
 
 export function ProfileStepForm({
@@ -274,24 +531,38 @@ export function ProfileStepForm({
   const [color, setColor] = useState<FullProfile["avatar_color"]>(
     profile?.avatar_color ?? "ink",
   );
+  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? "");
   const [phone, setPhone] = useState(profile?.phone ?? "");
   const [topics, setTopics] = useState<string[]>(profile?.topics ?? []);
-  const [studyPace, setStudyPace] = useState<string>(
-    profile?.study_pace ?? "mix",
+  const [studyPaces, setStudyPaces] = useState<string[]>(() =>
+    parseMultiValue(profile?.study_pace, ["mix"]),
   );
-  const [availability, setAvailability] = useState<string>(
-    profile?.availability ?? "weeknights",
+  const [availabilities, setAvailabilities] = useState<string[]>(() =>
+    parseMultiValue(profile?.availability, ["weeknights"]),
   );
   const [background, setBackground] = useState(profile?.background ?? "");
-  const [referralSource, setReferralSource] = useState<string>(
-    profile?.referral_source ?? "",
+  const [referralSources, setReferralSources] = useState<string[]>(() =>
+    parseMultiValue(profile?.referral_source, []),
   );
 
   function toggleTopic(val: string) {
     triggerHaptic("selection");
-    setTopics((prev) =>
-      prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val],
-    );
+    setTopics((prev) => toggleInList(prev, val));
+  }
+
+  function toggleStudyPace(val: string) {
+    triggerHaptic("selection");
+    setStudyPaces((prev) => toggleInList(prev, val));
+  }
+
+  function toggleAvailability(val: string) {
+    triggerHaptic("selection");
+    setAvailabilities((prev) => toggleInList(prev, val));
+  }
+
+  function toggleReferralSource(val: string) {
+    triggerHaptic("selection");
+    setReferralSources((prev) => toggleInList(prev, val));
   }
 
   return (
@@ -302,34 +573,34 @@ export function ProfileStepForm({
       ) : null}
 
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <div key={color} className="animate-chip-pop">
-            <Avatar
-              profile={{ display_name: name || "You", avatar_color: color }}
-              size="lg"
+        <ProfilePhotoPicker
+          name={name}
+          color={color}
+          avatarUrl={avatarUrl}
+          onChangeAvatarUrl={setAvatarUrl}
+          fieldError={state?.fieldErrors?.avatar_url}
+        />
+
+        <div className="min-w-0">
+          <Field
+            label="What do your friends call you?"
+            htmlFor="display_name"
+            error={state?.fieldErrors?.display_name}
+          >
+            <input
+              id="display_name"
+              name="display_name"
+              type="text"
+              autoComplete="name"
+              required
+              maxLength={40}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Ege"
+              aria-invalid={Boolean(state?.fieldErrors?.display_name)}
+              className={inputClass}
             />
-          </div>
-          <div className="min-w-0 flex-1">
-            <Field
-              label="What do your friends call you?"
-              htmlFor="display_name"
-              error={state?.fieldErrors?.display_name}
-            >
-              <input
-                id="display_name"
-                name="display_name"
-                type="text"
-                autoComplete="name"
-                required
-                maxLength={40}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Ege"
-                aria-invalid={Boolean(state?.fieldErrors?.display_name)}
-                className={inputClass}
-              />
-            </Field>
-          </div>
+          </Field>
         </div>
 
         <fieldset className="space-y-2">
@@ -430,9 +701,10 @@ export function ProfileStepForm({
             <legend className="font-semibold text-ink">
               What kind of weekly homework do you like best?
             </legend>
+            <p className="text-sm text-pencil">Pick as many as you like.</p>
             <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
               {STUDY_PACE_OPTIONS.map((opt) => {
-                const checked = studyPace === opt.value;
+                const checked = studyPaces.includes(opt.value);
                 return (
                   <label
                     key={opt.value}
@@ -443,14 +715,11 @@ export function ProfileStepForm({
                     }`}
                   >
                     <input
-                      type="radio"
+                      type="checkbox"
                       name="study_pace"
                       value={opt.value}
                       checked={checked}
-                      onChange={() => {
-                        triggerHaptic("selection");
-                        setStudyPace(opt.value);
-                      }}
+                      onChange={() => toggleStudyPace(opt.value)}
                       className="sr-only"
                     />
                     <span>{opt.label}</span>
@@ -470,9 +739,10 @@ export function ProfileStepForm({
             <legend className="font-semibold text-ink">
               When are you usually free to meet up?
             </legend>
+            <p className="text-sm text-pencil">Pick as many as you like.</p>
             <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
               {AVAILABILITY_OPTIONS.map((opt) => {
-                const checked = availability === opt.value;
+                const checked = availabilities.includes(opt.value);
                 return (
                   <label
                     key={opt.value}
@@ -483,14 +753,11 @@ export function ProfileStepForm({
                     }`}
                   >
                     <input
-                      type="radio"
+                      type="checkbox"
                       name="availability"
                       value={opt.value}
                       checked={checked}
-                      onChange={() => {
-                        triggerHaptic("selection");
-                        setAvailability(opt.value);
-                      }}
+                      onChange={() => toggleAvailability(opt.value)}
                       className="sr-only"
                     />
                     <span>{opt.label}</span>
@@ -530,9 +797,10 @@ export function ProfileStepForm({
               How did you hear about Homiework?{" "}
               <span className="font-normal text-pencil">(optional)</span>
             </legend>
+            <p className="text-sm text-pencil">Pick all that apply.</p>
             <div className="flex flex-wrap gap-2 pt-1">
               {REFERRAL_OPTIONS.map((opt) => {
-                const checked = referralSource === opt.value;
+                const checked = referralSources.includes(opt.value);
                 return (
                   <label
                     key={opt.value}
@@ -543,14 +811,11 @@ export function ProfileStepForm({
                     }`}
                   >
                     <input
-                      type="radio"
+                      type="checkbox"
                       name="referral_source"
                       value={opt.value}
                       checked={checked}
-                      onChange={() => {
-                        triggerHaptic("selection");
-                        setReferralSource(opt.value);
-                      }}
+                      onChange={() => toggleReferralSource(opt.value)}
                       className="sr-only"
                     />
                     {checked ? (
@@ -584,15 +849,6 @@ export function ProfileStepForm({
   );
 }
 
-type ContactPickerNavigator = Navigator & {
-  contacts?: {
-    select: (
-      properties: string[],
-      options?: { multiple?: boolean },
-    ) => Promise<{ name?: string[]; tel?: string[]; email?: string[] }[]>;
-  };
-};
-
 export function ContactGroupFinder({
   initialMatches = [],
   initialContactsCount = 0,
@@ -602,6 +858,7 @@ export function ContactGroupFinder({
   initialContactsCount?: number;
   initialPhone?: string | null;
 }) {
+  const finderTelId = useId();
   const [state, action, pending] = useActionState<ContactSyncState, FormData>(
     syncContactsForGroups,
     null,
@@ -611,6 +868,7 @@ export function ContactGroupFinder({
     FormData
   >(joinGroup, null);
   const [pickedJson, setPickedJson] = useState("");
+  const [devicePhone, setDevicePhone] = useState("");
   const [askingConsent, setAskingConsent] = useState(false);
   const [clearing, startClear] = useTransition();
   const [cleared, setCleared] = useState(false);
@@ -635,6 +893,10 @@ export function ContactGroupFinder({
           multiple: true,
         });
         if (selected && selected.length > 0) {
+          const firstOwnTel = selected[0]?.tel?.find((t) => Boolean(t?.trim()));
+          if (!devicePhone.trim() && firstOwnTel) {
+            setDevicePhone(firstOwnTel.trim());
+          }
           const normalized = selected.flatMap((c) => {
             const name = c.name?.[0] ?? "";
             const tels = c.tel ?? [];
@@ -647,7 +909,7 @@ export function ContactGroupFinder({
           setPickedJson(JSON.stringify(normalized));
         }
       } catch {
-        // Fall back to app directory sync on server
+        // Fall back to Phone app / directory sync on server
       }
     }
     setAskingConsent(false);
@@ -661,6 +923,7 @@ export function ContactGroupFinder({
     startClear(async () => {
       await clearSavedContacts();
       setPickedJson("");
+      setDevicePhone("");
       setAskingConsent(false);
       setCleared(true);
     });
@@ -675,6 +938,7 @@ export function ContactGroupFinder({
         className="space-y-3"
       >
         <input type="hidden" name="picked_contacts" value={pickedJson} />
+        <input type="hidden" name="device_phone" value={devicePhone} />
 
         {askingConsent ? (
           <div
@@ -682,14 +946,43 @@ export function ContactGroupFinder({
             aria-labelledby="consent-prompt-heading"
             className="animate-reveal space-y-3 rounded-md border border-rule bg-paper p-4"
           >
-            <div className="space-y-1">
-              <p id="consent-prompt-heading" className="font-semibold text-ink">
-                Allow Homiework to fetch your phone number from the app?
-              </p>
-              <p className="text-sm text-pencil">
-                We&apos;ll use your phone number and app contacts to check if your friends already run a study group. No manual writing needed.
-              </p>
+            <div className="flex items-start gap-3">
+              <span
+                aria-hidden
+                className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-ink text-paper"
+              >
+                <Phone className="size-4" />
+              </span>
+              <div className="space-y-1">
+                <p id="consent-prompt-heading" className="font-semibold text-ink">
+                  Use your Phone app to fetch your number &amp; contacts?
+                </p>
+                <p className="text-sm text-pencil">
+                  Homiework will ask your phone&apos;s Phone &amp; Contacts app for your number and check if your friends already run a study group.
+                </p>
+              </div>
             </div>
+
+            <div className="space-y-1.5 pt-1">
+              <label
+                htmlFor={finderTelId}
+                className="block text-xs font-semibold text-pencil"
+              >
+                Tap below for your phone&apos;s &ldquo;My Number&rdquo; autofill, or tap Allow to fetch directly
+              </label>
+              <input
+                id={finderTelId}
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                enterKeyHint="done"
+                value={devicePhone}
+                onChange={(e) => setDevicePhone(e.target.value)}
+                placeholder="Auto-fetch from Phone app (+1 555…)"
+                className={inputClass}
+              />
+            </div>
+
             <div className="flex flex-wrap items-center gap-3">
               <Button
                 type="button"
@@ -699,7 +992,7 @@ export function ContactGroupFinder({
                 disabled={pending}
                 onClick={handleAllowConsent}
               >
-                {pending ? "Fetching from app…" : "Allow access"}
+                {pending ? "Fetching from Phone app…" : "Allow access"}
               </Button>
               <Button
                 type="button"
@@ -716,7 +1009,7 @@ export function ContactGroupFinder({
             <div className="flex items-center gap-2 text-sm text-ink">
               <Check aria-hidden className="size-4 text-red stroke-[2.75]" />
               <span>
-                <span className="font-semibold">Phone fetched from app</span>
+                <span className="font-semibold">Fetched from Phone app</span>
                 {linkedPhone ? (
                   <span className="text-pencil"> ({linkedPhone})</span>
                 ) : null}
@@ -744,7 +1037,7 @@ export function ContactGroupFinder({
         ) : (
           <div className="space-y-2.5">
             <p className="text-sm text-pencil">
-              Don&apos;t have the invite code handy? Fetch your phone number from the app to see if your friends already have a study group.
+              Don&apos;t have the invite code handy? Use your Phone app to fetch your number and see if your friends already have a study group.
             </p>
             <div>
               <Button
@@ -755,7 +1048,10 @@ export function ContactGroupFinder({
                 onClick={() => setAskingConsent(true)}
                 className="w-full"
               >
-                {pending ? "Fetching from app…" : "Fetch phone number from app"}
+                <Phone aria-hidden className="mr-2 size-4" />
+                {pending
+                  ? "Fetching from Phone app…"
+                  : "Fetch number from Phone app"}
               </Button>
             </div>
           </div>
@@ -1087,17 +1383,18 @@ export function OnboardingWizard({
   const [color, setColor] = useState<FullProfile["avatar_color"]>(
     profile?.avatar_color ?? "ink",
   );
+  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? "");
   const [phone, setPhone] = useState(profile?.phone ?? "");
   const [topics, setTopics] = useState<string[]>(profile?.topics ?? []);
-  const [studyPace, setStudyPace] = useState<string>(
-    profile?.study_pace ?? "mix",
+  const [studyPaces, setStudyPaces] = useState<string[]>(() =>
+    parseMultiValue(profile?.study_pace, ["mix"]),
   );
-  const [availability, setAvailability] = useState<string>(
-    profile?.availability ?? "weeknights",
+  const [availabilities, setAvailabilities] = useState<string[]>(() =>
+    parseMultiValue(profile?.availability, ["weeknights"]),
   );
   const [background, setBackground] = useState(profile?.background ?? "");
-  const [referralSource] = useState<string>(
-    profile?.referral_source ?? "",
+  const [referralSources] = useState<string[]>(() =>
+    parseMultiValue(profile?.referral_source, []),
   );
 
   // Touch gesture state for purposeful swipe navigation between pages
@@ -1143,9 +1440,17 @@ export function OnboardingWizard({
 
   function toggleTopic(val: string) {
     triggerHaptic("selection");
-    setTopics((prev) =>
-      prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val],
-    );
+    setTopics((prev) => toggleInList(prev, val));
+  }
+
+  function toggleStudyPace(val: string) {
+    triggerHaptic("selection");
+    setStudyPaces((prev) => toggleInList(prev, val));
+  }
+
+  function toggleAvailability(val: string) {
+    triggerHaptic("selection");
+    setAvailabilities((prev) => toggleInList(prev, val));
   }
 
   function advanceGuideOrNext() {
@@ -1414,18 +1719,21 @@ export function OnboardingWizard({
             <input type="hidden" name="include_survey" value="1" />
             <input type="hidden" name="display_name" value={name} />
             <input type="hidden" name="avatar_color" value={color} />
+            <input type="hidden" name="avatar_url" value={avatarUrl} />
             <input type="hidden" name="phone" value={phone} />
             {topics.map((t) => (
               <input key={t} type="hidden" name="topics" value={t} />
             ))}
-            <input type="hidden" name="study_pace" value={studyPace} />
-            <input type="hidden" name="availability" value={availability} />
+            {studyPaces.map((p) => (
+              <input key={p} type="hidden" name="study_pace" value={p} />
+            ))}
+            {availabilities.map((a) => (
+              <input key={a} type="hidden" name="availability" value={a} />
+            ))}
             <input type="hidden" name="background" value={background} />
-            <input
-              type="hidden"
-              name="referral_source"
-              value={referralSource}
-            />
+            {referralSources.map((r) => (
+              <input key={r} type="hidden" name="referral_source" value={r} />
+            ))}
 
             {step === "profile-name" ? (
               <>
@@ -1433,30 +1741,27 @@ export function OnboardingWizard({
                   aria-labelledby="step-name-heading"
                   className="my-auto space-y-6"
                 >
-                  <div className="flex items-center gap-4">
-                    <div key={color} className="animate-chip-pop">
-                      <Avatar
-                        profile={{
-                          display_name: name || "You",
-                          avatar_color: color,
-                        }}
-                        size="lg"
-                      />
-                    </div>
-                    <div>
-                      <h1
-                        ref={stepHeadingRef}
-                        id="step-name-heading"
-                        tabIndex={-1}
-                        className="font-serif text-2xl text-ink outline-none"
-                      >
-                        What do your friends call you?
-                      </h1>
-                      <p className="text-sm text-pencil">
-                        This is how you appear on the weekly handout.
-                      </p>
-                    </div>
+                  <div className="space-y-1">
+                    <h1
+                      ref={stepHeadingRef}
+                      id="step-name-heading"
+                      tabIndex={-1}
+                      className="font-serif text-2xl text-ink outline-none"
+                    >
+                      What do your friends call you?
+                    </h1>
+                    <p className="text-sm text-pencil">
+                      Add a profile picture or pick an ink colour for the weekly handout.
+                    </p>
                   </div>
+
+                  <ProfilePhotoPicker
+                    name={name}
+                    color={color}
+                    avatarUrl={avatarUrl}
+                    onChangeAvatarUrl={setAvatarUrl}
+                    fieldError={profileState?.fieldErrors?.avatar_url}
+                  />
 
                   <div>
                     <label htmlFor="wizard_display_name" className="sr-only">
@@ -1629,9 +1934,12 @@ export function OnboardingWizard({
                     <legend className="font-semibold text-ink">
                       Weekly homework style
                     </legend>
+                    <p className="text-sm text-pencil">
+                      Pick as many as you like.
+                    </p>
                     <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
                       {STUDY_PACE_OPTIONS.map((opt) => {
-                        const checked = studyPace === opt.value;
+                        const checked = studyPaces.includes(opt.value);
                         return (
                           <label
                             key={opt.value}
@@ -1642,14 +1950,11 @@ export function OnboardingWizard({
                             }`}
                           >
                             <input
-                              type="radio"
+                              type="checkbox"
                               name="wizard_study_pace"
                               value={opt.value}
                               checked={checked}
-                              onChange={() => {
-                                triggerHaptic("selection");
-                                setStudyPace(opt.value);
-                              }}
+                              onChange={() => toggleStudyPace(opt.value)}
                               className="sr-only"
                             />
                             <span>{opt.label}</span>
@@ -1717,9 +2022,12 @@ export function OnboardingWizard({
                     <legend className="font-semibold text-ink">
                       Best meetup times
                     </legend>
+                    <p className="text-sm text-pencil">
+                      Pick as many as you like.
+                    </p>
                     <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
                       {AVAILABILITY_OPTIONS.map((opt) => {
-                        const checked = availability === opt.value;
+                        const checked = availabilities.includes(opt.value);
                         return (
                           <label
                             key={opt.value}
@@ -1730,14 +2038,11 @@ export function OnboardingWizard({
                             }`}
                           >
                             <input
-                              type="radio"
+                              type="checkbox"
                               name="wizard_availability"
                               value={opt.value}
                               checked={checked}
-                              onChange={() => {
-                                triggerHaptic("selection");
-                                setAvailability(opt.value);
-                              }}
+                              onChange={() => toggleAvailability(opt.value)}
                               className="sr-only"
                             />
                             <span>{opt.label}</span>
@@ -1865,7 +2170,7 @@ export function OnboardingWizard({
                   Have an invite from a friend?
                 </h1>
                 <p className="text-base text-pencil">
-                  Enter the invite code your friend shared, or fetch your phone number from the app to find their group automatically.
+                  Enter the invite code your friend shared, or use your Phone app to fetch your number and find their group automatically.
                 </p>
               </div>
 
